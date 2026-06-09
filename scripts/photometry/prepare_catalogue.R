@@ -13,13 +13,13 @@ fname = "smiles"
 
 ## change as necessary
 star_cat = data.frame(fread(
-  paste0("~/Documents/Epochs/data/GAIA/GAIA_53.14977_-27.80586_MIRI_photometry.csv")
+  paste0("~/Documents/Epochs/data/stars/", fname, "/GAIA_", fname, "_MIRI_photometry.csv")
 ))
 jades_F277W_warp = Rfits_point("~/Documents/Epochs/data/images/smiles/warped/JADES-DR3-GS_F277W_smiles_warp.fits")
 ## needed to discern if point lies out of footprint
 ## load in Epochsv2
 ## change as necessary - GOODS-S default
-GS_epochsV2 = data.frame(fread(file = "~/Documents/Epochs/data/EPOCHS-v2_GS_Sel-F277W+F356W+F444W_v14_psfmatch_F444W_empirical+v14_psfmatch_F444W_empirical.csv"))
+GS_epochsV2 = data.frame(fread(file = "~/Documents/Epochs/data/catalogues/EPOCHS-v2_GS_Sel-F277W+F356W+F444W_v14_psfmatch_F444W_empirical+v14_psfmatch_F444W_empirical.csv"))
 
 profound_cat = data.frame(fread(
   paste0("~/Documents/Epochs/data/catalogues/jp/", fname, "_", fname, "_", fname, "_segstats.csv")
@@ -49,23 +49,23 @@ segim_wcs = Rfits_read_image(
 frame_info = data.frame(fread(paste0("~/Documents/Epochs/data/depths/", fname, "_profound_frame_stats.csv")))
 
 ## star flags
-# magplot(
-#   -2.5*log10(profound_cat$JWST_MIRI_F560W_flux_aper32)+8.9,
-#   -2.5*log10(profound_cat$JWST_MIRI_F1280W_flux_aper32/profound_cat$JWST_MIRI_F560W_flux_aper32), 
-#   pch = "."
-# )
-# points(
-#   -2.5*log10(star_cat$JWST_MIRI_F560W_flux_aper32)+8.9,
-#   -2.5*log10(star_cat$JWST_MIRI_F1280W_flux_aper32/star_cat$JWST_MIRI_F560W_flux_aper32), 
-#   pch = 16, col = "blue"
-# )
+magplot(
+  -2.5*log10(aper_cat$F560W_flux_app_0.32)+8.9,
+  -2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32),
+  pch = "."
+)
+points(
+  -2.5*log10(star_cat$F560W_flux_aper32)+8.9,
+  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
+  pch = 16, col = "blue"
+)
 star_colour_lo = quantile(
-  -2.5*log10(star_cat$JWST_MIRI_F1280W_flux_aper32/star_cat$JWST_MIRI_F560W_flux_aper32),
+  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
   probs = 0.05,
   na.rm = TRUE
 )
 star_colour_hi = quantile(
-  -2.5*log10(star_cat$JWST_MIRI_F1280W_flux_aper32/star_cat$JWST_MIRI_F560W_flux_aper32),
+  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
   probs = 0.95,
   na.rm = TRUE
 )
@@ -111,15 +111,15 @@ flag_star_idx = (-2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_ap
   profound_cat$R50 <= 0.1
 flag_star_idx[is.na(flag_star_idx)] = FALSE
 
-# magplot(
-#   profound_cat$mag, profound_cat$R50, log = "y", ylim = c(0.01, 1.5)
-# )
-# points(
-#   profound_cat$mag[flag_hot_pixel], profound_cat$R50[flag_hot_pixel], pch = 16, col = "blue"
-# )
-# points(
-#   profound_cat$mag[flag_star_idx & !flag_hot_pixel], profound_cat$R50[flag_star_idx & !flag_hot_pixel], pch = 16, col = "cyan"
-# )
+magplot(
+  profound_cat$mag, profound_cat$R50, log = "y", ylim = c(0.01, 1.5)
+)
+points(
+  profound_cat$mag[flag_hot_pixel], profound_cat$R50[flag_hot_pixel], pch = 16, col = "blue"
+)
+points(
+  profound_cat$mag[flag_star_idx & !flag_hot_pixel], profound_cat$R50[flag_star_idx & !flag_hot_pixel], pch = 16, col = "cyan"
+)
 
 ## mask flags
 flag_mask_idx = profound_cat$Nmask/profound_cat$N100 > 0
@@ -131,7 +131,7 @@ flag_detection_idx = (profound_cat$flux/profound_cat$det_1sig_local_depth < 4)
 match_idx = coordmatch(
   coordref = GS_epochsV2[, c("ALPHA_J2000", "DELTA_J2000")], 
   coordcompare = profound_cat[, c("RAmax", "Decmax")],
-  rad = 2.0
+  rad = 0.3
 )
 flag_epochs_unmatch_idx = !(1:dim(profound_cat)[1] %in% match_idx$bestmatch$compareID)
 
@@ -364,7 +364,7 @@ combined_photometry_a60_ext_corr[, 1:(ncol(combined_photometry_a60))][negative_f
 profound_cat$ID = 1:dim(profound_cat)[1]
 
 the_catalogue = list(
-  "ProFound" = cbind( data.frame(profound_cat)[, !grepl("flux|aper|F.+W", names(profound_cat))], profound_cat[, c("flux", "flux_err")]),
+  "ProFound" = cbind( data.frame(profound_cat)[, !grepl("flux|aper|F.+W", names(profound_cat))], profound_cat[, c("flux", "flux_err")], "FIELD" = fname),
   
   "PhotTot" = combined_photometry_tot_ext_corr,
   "PhotCol" = combined_photometry_col_ext_corr,
@@ -392,3 +392,4 @@ Rfits_write(
   the_catalogue, 
   filename = paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits")
 )
+

@@ -1,22 +1,12 @@
-library(ProSpect)
-library(ProSpectUtils)
-library(celestial)
-library(ParmOff)
-library(Highlander)
-library(nloptr)
 library(foreach)
-library(matrixStats)
 library(doParallel)
-library(magicaxis)
 library(data.table)
 
 set.seed(666)
 
-CMANiters = 500
-LDNiters = 1000
-ncores = 1 ## will set to 1 for SLURM job array 
+ncores = 8 ## will set to 1 for SLURM job array 
 ncoresPost = 1 ## how many cores for posterior sampling
-slurm_paralel_job_array = FALSE
+do_spec = TRUE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
@@ -39,112 +29,80 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype <- args[3]
 }
 
-index_parallel_job_array = function(INDEX, ncores){
-  a = INDEX*ncores - ncores
-  b = INDEX*ncores - 1 
-  
-  if(INDEX == 1){ 
-    a = 1 
-    b = ncores
-    c = 0
-  }else{
-    c = 1
-  }
-  return( (a:b) + c ) 
-}
-
-if(slurm_paralel_job_array){
-  idx_idx = idx 
-  idx = index_parallel_job_array(idx_idx, ncores)
+if(do_spec){
+  save_dir = paste0(
+    main_dir, "data/prospect/", fittype, "_spec/"
+  )
+  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_spec_astro_cat.csv")
+}else{
+  save_dir = paste0(
+    main_dir, "data/prospect/", fittype, "/"
+  )
+  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_astro_cat.csv")
 }
 
 load(
   paste0(main_dir, "/data/prospect_data_for_fitting.rda")
 )
-## Frame info, filter info, throughputs loaded 
-## prior and constraints loaded
-## eazy zPDFs loaded
 
-dir.create(
-  paste0(main_dir, "/prospect/", fittype), 
-  recursive = TRUE
+spec_ids = c(
+  2193, 725, 781, 2797, 3870, 3123, 5507, 2269, 1903, 3618, 2294, 2362, 3327, 1342, 1869, 1245, 1733, 1810, 196, 4459, 743, 279, 2074, 2591, 2247, 578, 3356, 3012, 3294, 2535,
+  491, 1445, 971, 681, 3211, 2020, 4503, 2384, 1779, 3679, 1481, 684, 1456, 2214, 1655, 1715, 4488, 2838, 122, 4542, 945, 2342, 2761, 2758, 826, 261, 3281, 912, 1489, 895, 594,
+  1102, 1739, 3380, 372, 5491, 658, 1762, 3014, 746, 600, 1941, 1846, 1095, 629, 1203, 690, 1307, 928, 1186, 30, 1161, 1513, 4950, 919, 1727, 706, 2652, 2357, 1272, 1013, 1116,
+  779, 1309, 2864, 1870, 1276, 291, 4500, 383, 1343, 3742, 716, 1735, 1094, 3246, 3377, 790, 3483, 621, 482, 3612, 2052, 108, 1625, 3198, 23, 2531, 1469, 1601, 2536, 5631, 3825,
+  1544, 4610, 1806, 2932, 1136, 2827, 1145, 251, 191, 1334, 142, 8, 1225, 2199, 1129, 2058, 915, 4561, 541, 1586, 461, 2712, 4844, 2347, 4479, 1809, 2644, 1007, 585, 3401, 2675,
+  2437, 3010, 190, 2683, 1453, 1745, 5219, 2257, 2962, 2843, 2235, 298
+)
+if(do_spec){
+  idx = spec_ids
+}
+
+template_cols = names(
+  readRDS(
+    list.files(save_dir, full.names = TRUE)[1]
+  )$astro
 )
 
-# match_nirspec_idx = coordmatch(
-#   coordref = smiles_miri_nirspec[, c("RA", "DEC")],
-#   coordcompare = phot_cat$ProFound[, c("RAmax", "Decmax")],
-#   rad = 0.3
-# )
-# nirspec_z = smiles_miri_nirspec$Z_SPEC[match_nirspec_idx$bestmatch$refID]
-# idx = match_nirspec_idx$bestmatch$compareID
-
-start = Sys.time()
 registerDoParallel(cores = ncores)
-df_astro = foreach(ii = idx, .combine = rbind) %dopar% {
+df_combine = foreach(ii = idx, .combine = rbind) %dopar% {
   message("Running galID: ", ii)
   read_stub = paste0(
-    main_dir, "/prospect/", fittype, "/galID_",ii, ".rds"
-  )
-  save_stub = paste0(
-    main_dir, "/prospect/", fittype, "/astro_galID_",ii, ".rds"
+    save_dir, "/galID_",ii, ".rds"
   )
   
-  out = readRDS(read_stub)
-  bestfit = out$bestfit
-  
-  ## put all of the heavy stuff back to make the catalogue
-  bestfit$Data$speclib = BC03hr
-  if(fittype == "photoZ_bc03_snorm_fritz"){
-    bestfit$Data$AGN = Fritz
-  }
-  bestfit$Data$Dale = Dale_NormTot
-  bestfit$Data$constraints = function(parm){constraintfunc(parm, bestfit$Data)}
-  bestfit$Data$prior = pfunc
-  
-  summ = suppressMessages(
-    ProSpectUtils::calc_astro(
-      bestfit,
-      out$highout,
-      newDust = TRUE,
-      specz = FALSE,
-      cores = ncoresPost,
-    )
-  )
-  
-  out$astro = summ$summary
-  out$post = summ$Posterior
-  
-  saveRDS(
-    out, 
-    save_stub
-  )
-  
-  rm(out)
-  rm(bestfit)
-  gc()
-  return(NULL)
-}
-stopImplicitCluster()
-
-if(tail(idx,1) == dim(phot_cat$ProFound)[1]){
-  registerDoParallel(cores = ncores)
-  df_combine = foreach(ii = 1:tail(idx,1), .combine = rbind) %dopar% {
-    message("Running galID: ", ii)
-    read_stub = paste0(
-      main_dir, "/prospect/", fittype, "/astro_galID_",ii, ".rds"
-    )
-    
+  if(file.exists(read_stub)){
     out = readRDS(read_stub)
-    astro = out$astro
-    astro$DIC = out$galInfo$DIC
+    
+    if(fittype == "power_laws"){
+      astro = out$astro
+      astro$ID = out$galInfo$ID
+      astro$RA = out$galInfo$RAmax
+      astro$Dec = out$galInfo$Decmax
+      astro$zQ50 = out$galInfo$z
+      astro$DIC = NA
+    }else{
+      astro = out$astro
+      astro$ID = out$galInfo$ID
+      astro$RA = out$galInfo$RAmax
+      astro$Dec = out$galInfo$Decmax
+      astro$DIC = out$galInfo$DIC
+    }
     
     rm(out)
     gc()
-    return(astro)
   }
-  stopImplicitCluster()
-  fwrite(
-    df_combine, paste0(main_dir, "/prospect/", fittype, "_astro_cat.csv")
-  )
+  else{
+    astro = setNames(as.data.frame(matrix(NA, nrow = 1, ncol = length(template_cols))), template_cols)
+    astro$ID = ii
+    astro$RA = phot_cat$ProFound$RAmax[ii]
+    astro$Dec = phot_cat$ProFound$Decmax[ii]
+    astro$DIC = NA
+    astro$zQ50 = NA
+  }
+  return(astro)
 }
-print(Sys.time() - start)
+stopImplicitCluster()
+fwrite(
+  data.frame(df_combine), 
+  cat_stub
+)

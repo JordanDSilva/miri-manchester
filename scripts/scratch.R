@@ -112,3 +112,150 @@ opt = nloptr(
     "maxeval"     = 10000               # cap iterations so it doesn't run forever
   )
 )
+
+
+
+# completeness crap
+## Same method as 2 from Leethochawalit et al 2022 MNRAS
+mag_bins = seq(10, 40, 0.5)
+input_mag_hist = maghist(
+  x = samples_df$mag, 
+  breaks = mag_bins, 
+  plot = F, 
+  verbose = F
+)
+
+input_match_mag_hist = maghist(
+  # x = samples_df$mag[match_idx$bestmatch$refID],
+  x = pro_fake$segstats$mag[match_idx$bestmatch$compareID],
+  breaks = mag_bins, 
+  plot = F, 
+  verbose = F
+)
+
+input_mag_contaminants_hist = maghist(
+  # x = samples_df$mag[match_idx$bestmatch$refID],
+  x = pro_fake$segstats$mag[!(1:dim(pro_fake$segstats)[1] %in% match_idx$bestmatch$compareID)],
+  breaks = mag_bins, 
+  plot = F, 
+  verbose = F
+)
+compl_mag = (input_match_mag_hist$counts)/(input_mag_hist$counts)
+compl_pois = sqrt( compl_mag^2 * 
+                     ( (sqrt(input_match_mag_hist$counts)/input_match_mag_hist$counts)^2 + 
+                         (sqrt(input_mag_hist$counts)/input_mag_hist$counts)^2 ) )
+compl_pois[compl_pois == 0] = 0.01 
+
+compl_contaminants_mag = (input_mag_contaminants_hist$counts)/(input_mag_hist$counts)
+compl_contaminants_pois = sqrt( compl_contaminants_mag^2 * 
+                                  ( (sqrt(input_mag_contaminants_hist$counts)/input_mag_contaminants_hist$counts)^2 + 
+                                      (sqrt(input_mag_hist$counts)/input_mag_hist$counts)^2 ) )
+compl_pois[compl_pois == 0] = 0.01 
+
+x = input_mag_hist$mids
+# x = c(input_mag_hist$mids, 28.2)
+# compl_mag = c(compl_mag, 0)
+# compl_pois = c(compl_pois, 1e-99)
+
+## logisitic function
+logistic = function(x, parm){
+  L = parm[1]
+  k = parm[2]
+  x0 = parm[3]
+  
+  yy = L / (1 + exp(-1*k * (x-x0)))
+  return(yy)
+}
+LL = function(parm, Data){
+  
+  like = dnorm(
+    x = Data$y,
+    mean = logistic(Data$x, parm),
+    sd = Data$yerr,
+    log = TRUE
+  )
+  return(
+    sum(like, na.rm = TRUE)
+  )
+}
+opt = optim(
+  par = c(0.8, 1, 26),
+  fn = LL, 
+  Data = list(
+    x = c(x[!is.nan(compl_mag)]),
+    y = c(compl_mag[!is.nan(compl_mag)]),
+    yerr = c(compl_pois[!is.nan(compl_mag)])
+  ),
+  control = list(fnscale = -1)
+)
+
+pdf(
+  file = paste0(main_dir, "/", fname, "/", fname, "_detection_completeness.pdf"),
+  width = 12, height = 5
+)
+par(mfrow = c(1,2), oma = rep(1.0, 4), mar = c(2.5, 2.5, 1.5, 1.5))
+magplot(
+  x,
+  compl_mag,
+  xlim = c(15, 35),
+  ylim = c(0, 1),
+  xlab = "Detect magnitude",
+  ylab = "Detection completeness"
+)
+magerr(
+  x,
+  compl_mag,
+  ylo = compl_pois
+)
+abline(
+  v = -2.5*log10(frame_info$detect_5sigma_depth_32asec)+8.9, 
+  col = "cornflowerblue", 
+  lwd = 2
+)
+lines(
+  x,
+  logistic(x, opt$par),
+  col = "blue",
+  lwd = 2
+)
+legend(
+  x = "topright",
+  legend = c("Logisitic fit"),
+  col = "blue",
+  lty = 1
+)
+
+magplot(
+  x,
+  compl_contaminants_mag,
+  xlim = c(15, 35),
+  # ylim = c(0, 1),
+  xlab = "Detect magnitude",
+  ylab = "Detection contamination"
+)
+magerr(
+  x,
+  compl_contaminants_mag,
+  ylo = compl_contaminants_pois
+)
+abline(
+  v = -2.5*log10(frame_info$detect_5sigma_depth_32asec)+8.9, 
+  col = "cornflowerblue", 
+  lwd = 2
+)
+
+dev.off()
+
+compl_df = data.frame(
+  "x" = x,
+  "compl_mag" = compl_mag,
+  "compl_mag_err" = compl_pois, 
+  "compl_contaminants" = compl_contaminants_mag,
+  "compl_contaminants_err" = compl_contaminants_pois,
+  "compl_fit" = logistic(x, opt$par)
+)
+
+fwrite(
+  compl_df, 
+  paste0(main_dir, "/", fname, "/", fname, "_det_mag_completeness_stats.csv")
+)

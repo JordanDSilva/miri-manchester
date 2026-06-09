@@ -18,7 +18,7 @@ library(RColorBrewer)
 main_dir = "~/Documents/Epochs/"
 fname = "smiles"
 
-smiles_miri_nirspec = Rfits_read_table(paste0(main_dir, "data/hlsp_smiles_jwst_nirspec_goodss_multi_v1.0_catalog.fits"))
+smiles_miri_nirspec = Rfits_read_table(paste0(main_dir, "data/spec/hlsp_smiles_jwst_nirspec_goodss_multi_v1.0_catalog.fits"))
 
 todaysdate = Sys.Date()
 
@@ -30,10 +30,18 @@ frame_info = data.frame(fread(paste0(main_dir, "data/depths/", fname, "_profound
 phot_cat = Rfits_read(
   paste0(main_dir, "/data/catalogues/", fname, "_profound_multiband_cat.fits")
 )
+
 ## load in EAZY zPDFs and make approxfuns
 ## make sure to put zPDF prior back to prior func
+fname_append = "_agn_blue_sfhz"
 eazy_zPDFs = data.frame(fread(
-  paste0("~/Documents/Epochs/eazy/", fname, "/", fname, "_eazy_zPDF.csv")
+  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
+))
+eazy_zPDFs_normals = data.frame(fread(
+  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv")
+))
+eazy_stats = data.frame(fread(
+  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
 ))
 
 pfunc=function(parm){
@@ -43,6 +51,20 @@ pfunc=function(parm){
   prior = sum(
     c(
       dnorm(parm['tau_birth'], mean=-0.2, sd=0.5, log = TRUE),
+      100*erf(-5 * (parm['tau_screen'] - parm['tau_birth'])) - 100, ## Column density of dust in the ISM should be less than that of the birth clouds
+      dnorm(parm['alpha_SF_birth'], mean=2, sd=1, log=TRUE),
+      dnorm(parm['alpha_SF_screen'], mean=2, sd=1, log=TRUE),
+      100*erf(-5 * (parm['mpeak'] - cosdistUniAgeAtz(10^parm['z'], ref = '737'))) - 100, ## disfavour mpeak above the age of the Uni at that epoch
+      0
+    ),
+    na.rm = TRUE
+  )
+  return(prior)
+}
+
+pfunc_no_tau_birth=function(parm){
+  prior = sum(
+    c(
       100*erf(-5 * (parm['tau_screen'] - parm['tau_birth'])) - 100, ## Column density of dust in the ISM should be less than that of the birth clouds
       dnorm(parm['alpha_SF_birth'], mean=2, sd=1, log=TRUE),
       dnorm(parm['alpha_SF_screen'], mean=2, sd=1, log=TRUE),
@@ -103,18 +125,13 @@ save(
   frame_info, filters_info, filter_transforms, 
   smiles_miri_nirspec,
   phot_cat, 
-  pfunc, pfunc_driver26_alpha, 
+  pfunc, pfunc_driver26_alpha, pfunc_no_tau_birth,
   constraintfunc, constraintfunc_driver26_alpha, 
-  eazy_zPDFs,
+  eazy_zPDFs, eazy_zPDFs_normals, eazy_stats,
   file = "~/Documents/Epochs/data/prospect_data_for_fitting.rda"
 )
-
-save(
-  todaysdate,
-  frame_info, filters_info, filter_transforms, 
-  smiles_miri_nirspec, 
-  phot_cat,
-  pfunc, pfunc_driver26_alpha, 
-  constraintfunc, constraintfunc_driver26_alpha, 
-  file = "~/Documents/Epochs/source_inject/prospect_data_for_fitting.rda"
+file.copy(
+  "~/Documents/Epochs/data/prospect_data_for_fitting.rda",
+  "~/Documents/Epochs/data/prospect/prospect_data_for_fitting.rda",
+  overwrite = TRUE
 )

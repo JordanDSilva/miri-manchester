@@ -36,7 +36,7 @@ imdim = dim(F560W_F770W_stack$image)
 im_ra_dec = Rwcs_p2s(x = imdim[1], y = imdim[2], keyvalues = F560W_F770W_stack$image$keyvalues) #get extent of frame in RA and DEC coords
 gaia = data.frame(
   fread(
-    file = paste0(main_dir, "data/GAIA/GAIA_53.14977_-27.80586.csv")
+    file = paste0(main_dir, "data/stars/GAIA_53.14977_-27.80586.csv")
   )
 )
 delta_time = 2023 - gaia$ref_epoch ## observed in December 2022?
@@ -54,7 +54,7 @@ gaia_ra_dec = gaia[gaia_idx,]
 gaia_trim = gaia_ra_dec[order(gaia_ra_dec$phot_g_mean_mag), ]
 fwrite(
   gaia_trim,
-  file = paste0(main_dir, "data/GAIA/GAIA_53.14977_-27.80586_trim.csv")
+  file = paste0(main_dir, "data/stars/GAIA_53.14977_-27.80586_trim.csv")
 )
 
 star_mask = profoundApplyMask(

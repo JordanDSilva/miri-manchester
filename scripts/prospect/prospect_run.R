@@ -16,8 +16,10 @@ set.seed(666)
 CMANiters = 500
 LDNiters = 1000
 ncores = 1 
-max_slurm_jobs = 1 # should be the maximum of your job array
+max_slurm_jobs = 1 # should be themaximum of your job array
 slurm_paralel_job_array = FALSE
+do_spec = FALSE
+do_zrobust = FALSE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
@@ -27,7 +29,7 @@ if (length(args[1]) == 0 | is.na(args[1])) {
   idx <- bounds[1]:bounds[2]
 } else {
   idx <- as.integer(args[1])
-}
+} 
 
 if (length(args[2]) == 0 | is.na(args[2])) {
   main_dir = "~/Documents/Epochs/"
@@ -39,8 +41,9 @@ if (length(args[3]) == 0 | is.na(args[3])) {
 } else {
   fittype <- args[3]
 }
+
 dir.create(
-  paste0(main_dir, "/prospect/", fittype), 
+  paste0(main_dir, "/data/prospect/", fittype), 
   recursive = TRUE
 )
 
@@ -50,6 +53,25 @@ load(
 ## Frame info, filter info, throughputs loaded 
 ## prior and constraints loaded
 ## eazy zPDFs loaded
+
+if(do_zrobust){
+  robust_ids = which(
+    eazy_stats$zbestPzIntegral > 0.6 & eazy_stats$zbestChi2Pval >= 0.005
+  )
+  idx = robust_ids[idx]
+}
+if(do_spec){
+  # JADES spec z sample
+  spec_ids = c(
+    2193, 725, 781, 2797, 3870, 3123, 5507, 2269, 1903, 3618, 2294, 2362, 3327, 1342, 1869, 1245, 1733, 1810, 196, 4459, 743, 279, 2074, 2591, 2247, 578, 3356, 3012, 3294, 2535,
+    491, 1445, 971, 681, 3211, 2020, 4503, 2384, 1779, 3679, 1481, 684, 1456, 2214, 1655, 1715, 4488, 2838, 122, 4542, 945, 2342, 2761, 2758, 826, 261, 3281, 912, 1489, 895, 594,
+    1102, 1739, 3380, 372, 5491, 658, 1762, 3014, 746, 600, 1941, 1846, 1095, 629, 1203, 690, 1307, 928, 1186, 30, 1161, 1513, 4950, 919, 1727, 706, 2652, 2357, 1272, 1013, 1116,
+    779, 1309, 2864, 1870, 1276, 291, 4500, 383, 1343, 3742, 716, 1735, 1094, 3246, 3377, 790, 3483, 621, 482, 3612, 2052, 108, 1625, 3198, 23, 2531, 1469, 1601, 2536, 5631, 3825,
+    1544, 4610, 1806, 2932, 1136, 2827, 1145, 251, 191, 1334, 142, 8, 1225, 2199, 1129, 2058, 915, 4561, 541, 1586, 461, 2712, 4844, 2347, 4479, 1809, 2644, 1007, 585, 3401, 2675,
+    2437, 3010, 190, 2683, 1453, 1745, 5219, 2257, 2962, 2843, 2235, 298
+  )
+  idx = spec_ids[idx]
+}
 
 flux_cat = data.frame(phot_cat$Phot32)
 df_flux = flux_cat[, paste0(filters_info$filters, "_flux_app_0.32")]
@@ -63,12 +85,12 @@ df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_flux_err_app_0.32
 # nirspec_z = smiles_miri_nirspec$Z_SPEC[match_nirspec_idx$bestmatch$refID]
 # idx = match_nirspec_idx$bestmatch$compareID[idx]
 
-## standard BC03 with Fritz AGN model 
+## standard BC03 with Fritz AGN model, following Thorne+21 set up, eazy prior, tau birth prior
 do_photoz_bc03_snorm_fritz_fit = function(kk){
   message("Running gal: ", kk)
   
   save_stub = paste0(
-    main_dir, "/prospect/", fittype, "/galID_",kk, ".rds" 
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
   )
 
   flux_data = data.frame(
@@ -196,7 +218,7 @@ do_photoz_bc03_snorm_fit = function(kk){
   message("Running gal: ", kk)
   
   save_stub = paste0(
-    main_dir, "/prospect/", fittype, "/galID_",kk, ".rds" 
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
   )
   
   flux_data = data.frame(
@@ -310,10 +332,1219 @@ do_photoz_bc03_snorm_fit = function(kk){
   return(out)
 }
 
+## standard BC03 with Fritz AGN model, eazy prior, no tau birth prior
+do_photoz_bc03_snorm_fritz_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc_no_tau_birth(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        35, 0.001, -1
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+## standard BC03 with NO Fritz/AGN model
+do_photoz_bc03_snorm_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc_no_tau_birth(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filter_transforms,
+    
+    SFH=SFHfunc,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
+## standard BC03 with Fritz AGN model, no eazy prior, no tau birth prior
+do_photoz_bc03_snorm_fritz_no_eazy_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        35, 0.001, -1
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+## standard BC03 with NO Fritz/AGN model, no eazy prior, no tau birth prior
+do_photoz_bc03_snorm_no_eazy_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filter_transforms,
+    
+    SFH=SFHfunc,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
+## Standard Bc03 with Fritz, no eazy prior, tau birth prior
+do_photoz_bc03_snorm_fritz_no_eazy_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)] ## for initial guess
+  
+  filtout = filter_transforms
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        35, 0.001, -1
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  startpoint["z"] = log10(zeazy) 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+## standard BC03, no eazy prior, tau birth prior
+do_photoz_bc03_snorm_no_eazy_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  zPDF_load = eazy_zPDFs[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)] ## for initial guess
+  
+  filtout = filter_transforms
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filter_transforms,
+    
+    SFH=SFHfunc,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["z"] = log10(zeazy)
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
+## standard BC03 with Fritz AGN model, normal prior on eazy zbest, tau birth prior
+do_photoz_bc03_snorm_fritz_norm_eazy_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs_normals$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        35, 0.001, -1
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+## Standard Bc03 with No Fritz, normal prior on eazy zbest, tau birth prior
+do_photoz_bc03_snorm_norm_eazy_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs_normals$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filter_transforms,
+    
+    SFH=SFHfunc,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
+## standard BC03 with Fritz AGN model, normal prior on eazy zbest, no tau birth prior
+do_photoz_bc03_snorm_fritz_norm_eazy_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs_normals$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc_no_tau_birth(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        35, 0.001, -1
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+## Standard Bc03 with No Fritz, normal prior on eazy zbest, no tau birth prior
+do_photoz_bc03_snorm_norm_eazy_no_tau_birth_fit = function(kk){
+  message("Running gal: ", kk)
+  
+  save_stub = paste0(
+    main_dir, "/data/prospect/", fittype, "/galID_",kk, ".rds" 
+  )
+  
+  flux_data = data.frame(
+    "filter" = filters_info$filters,
+    "cenwave" = filters_info$cenwave,
+    "flux" = as.numeric(df_flux[kk, ])
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (0.05 * flux_data$flux)^2 ) ## put 5pc minimum error
+  
+  filtout = filter_transforms
+  
+  zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
+  zPDF_load[zPDF_load <= 0] = 1e-100
+  zPDF_func = approxfun(
+    x = eazy_zPDFs_normals$zgrid,
+    y = log(zPDF_load),
+    rule = 2
+  )## check z logged
+  
+  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  
+  pfunc_zPDF = function(parm){
+    prior = pfunc_no_tau_birth(parm) + 
+      zPDF_func(10^parm['z'])
+    return(prior)
+  }
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = TRUE,
+      IGMfunc = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filter_transforms,
+    
+    SFH=SFHfunc,
+    Dale_M2L_func = Dale_M2L_func,
+    parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    logged = c(
+      TRUE,
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -2,
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        log10(40), 
+        4, 13.46728, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_zPDF,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
+  
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( phot_cat$ProFound[kk, c("RAmax", "Decmax", "ID")], "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
 if(fittype == "photoZ_bc03_snorm_fritz"){
   do_fit = do_photoz_bc03_snorm_fritz_fit
 }else if (fittype == "photoZ_bc03_snorm"){
   do_fit = do_photoz_bc03_snorm_fit
+}else if (fittype == "photoZ_bc03_snorm_fritz_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_fritz_no_tau_birth_fit
+}else if (fittype == "photoZ_bc03_snorm_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_no_tau_birth_fit
+}else if (fittype == "photoZ_bc03_snorm_fritz_no_eazy_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_fritz_no_eazy_no_tau_birth_fit
+}else if (fittype == "photoZ_bc03_snorm_no_eazy_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_no_eazy_no_tau_birth_fit
+}else if (fittype == "photoZ_bc03_snorm_fritz_no_eazy"){
+  do_fit = do_photoz_bc03_snorm_fritz_no_eazy_fit
+}else if (fittype == "photoZ_bc03_snorm_no_eazy"){
+  do_fit = do_photoz_bc03_snorm_no_eazy_fit
+}else if (fittype == "photoZ_bc03_snorm_fritz_norm_eazy"){
+  do_fit = do_photoz_bc03_snorm_fritz_norm_eazy_fit
+}else if (fittype == "photoZ_bc03_snorm_norm_eazy"){
+  do_fit = do_photoz_bc03_snorm_norm_eazy_fit
+}else if (fittype == "photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_fritz_norm_eazy_no_tau_birth_fit
+}else if (fittype == "photoZ_bc03_snorm_norm_eazy_no_tau_birth"){
+  do_fit = do_photoz_bc03_snorm_norm_eazy_no_tau_birth_fit
 }
 
 index_parallel_job_array = function(INDEX, ncores, N, start_Nindex, end_index){
@@ -375,6 +1606,12 @@ foreach(kk = idx) %dopar% {
   
   fit = do_fit(kk)
 
+  # fit$bestfit$Data$arglist$escape_frac = 1
+  # new = ProSpectSEDlike(
+  #   fit$bestfit$parm,
+  #   fit$bestfit$Data
+  # )
+  
   summ = suppressMessages(
     ProSpectUtils::calc_astro(
       fit$bestfit,
@@ -402,23 +1639,23 @@ foreach(kk = idx) %dopar% {
 }
 stopImplicitCluster()
 
-if(tail(idx,1) == dim(df_flux)[1]){
-  df_combine = foreach(ii = 1:tail(idx,1), .combine = rbind) %do% {
-    message("Running galID: ", ii)
-    read_stub = paste0(
-      main_dir, "/prospect/", fittype, "/galID_",ii, ".rds"
-    )
-    
-    out = readRDS(read_stub)
-    astro = out$astro
-    astro['DIC'] = out$galInfo$DIC
-    
-    rm(out)
-    gc()
-    return(astro)
-  }
-  fwrite(
-    df_combine, paste0(main_dir, "/prospect/", fittype, "_astro_cat.csv")
-  )
-}
+# if(tail(idx,1) == dim(df_flux)[1]){
+#   df_combine = foreach(ii = 1:tail(idx,1), .combine = rbind) %do% {
+#     message("Running galID: ", ii)
+#     read_stub = paste0(
+#       main_dir, "/prospect/", fittype, "/galID_",ii, ".rds"
+#     )
+#     
+#     out = readRDS(read_stub)
+#     astro = out$astro
+#     astro['DIC'] = out$galInfo$DIC
+#     
+#     rm(out)
+#     gc()
+#     return(astro)
+#   }
+#   fwrite(
+#     df_combine, paste0(main_dir, "/prospect/", fittype, "_astro_cat.csv")
+#   )
+# }
 

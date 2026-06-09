@@ -7,19 +7,26 @@
 
 library(stringr)
 library(data.table)
+library(Rfits)
 
 main_dir = "~/Documents/Epochs/"
 fname = "smiles"
 appsize = "0.32"
+min_pc_err = 0.1
 
-load(
-  paste0(main_dir, "/data/prospect_data_for_fitting.rda")
+# load(
+#   paste0(main_dir, "/data/prospect/prospect_data_for_fitting.rda")
+# )
+
+phot_cat = Rfits_read(
+  paste0(main_dir, "/data/catalogues/", fname, "_profound_multiband_cat.fits")
 )
-
+filters_info = data.frame(fread(paste0(main_dir, "data/throughputs/wavelengths.txt")))
 
 flux_cat = data.frame(phot_cat$Phot32)
 df_flux = flux_cat[, paste0(filters_info$filters, "_flux_app_", appsize)]
 df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_flux_err_app_", appsize)]
+df_flux_err = sqrt((df_flux_err)^2 + (min_pc_err * df_flux)^2) # put minimum error
 
 # --- 1. Target flux column names -------------------------------------------
 flux_cols = names(df_flux)
@@ -142,14 +149,14 @@ eazy_nircam_translate = data.frame(cbind(
 
 fwrite(
   eazy_translate, 
-  paste0("~/Documents/Epochs/eazy/eazy_", fname, "_zphot.translate"), 
+  paste0("~/Documents/Epochs/data/eazy/eazy_", fname, "_zphot.translate"), 
   sep = " ", 
   row.names = FALSE
 )
 
 fwrite(
   eazy_nircam_translate, 
-  paste0("~/Documents/Epochs/eazy/eazy_", fname, "_zphot_nircam.translate"), 
+  paste0("~/Documents/Epochs/data/eazy/eazy_", fname, "_zphot_nircam.translate"), 
   sep = " ", 
   row.names = FALSE
 )
@@ -158,5 +165,5 @@ fwrite(
   cbind(
     ID = phot_cat$ProFound$ID, RA = phot_cat$ProFound$RAmax, Dec = phot_cat$ProFound$Decmax, df_flux, df_flux_err
   ), 
-  paste0("~/Documents/Epochs/eazy/", fname, "_phot_eazy.csv")
+  paste0("~/Documents/Epochs/data/eazy/", fname, "_phot_eazy.csv")
 )

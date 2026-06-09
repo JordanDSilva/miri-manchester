@@ -29,7 +29,7 @@ calc_stats = function(pro_measure, filt_name){
   totarea = sum(!is.na(pro_measure$image)) * pixarea(pro_measure$keyvalues, unit = "amin2")
   
   ## depth
-  random_aperture_radii = c(0.16, 0.32, 0.5)
+  random_aperture_radii = c(0.16, 0.32, 0.5, 0.6)
   random_apertures = profoundAperRan(
     image = pro_measure$image - pro_measure$sky,
     segim = pro_measure$segim,
@@ -37,7 +37,7 @@ calc_stats = function(pro_measure, filt_name){
     magzero = pro_measure$magzero,
     pixscale = pro_measure$pixscale,
     fluxtype = "Jansky", 
-    Nran = 1000,
+    Nran = 100000,
     depth = 5,
     correction = TRUE
   )
