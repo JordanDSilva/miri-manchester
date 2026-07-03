@@ -6,7 +6,8 @@ set.seed(666)
 
 ncores = 8 ## will set to 1 for SLURM job array 
 ncoresPost = 1 ## how many cores for posterior sampling
-do_spec = TRUE
+do_spec = FALSE
+do_lrd = FALSE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
@@ -24,7 +25,7 @@ if (length(args[2]) == 0 | is.na(args[2])) {
   main_dir <- args[2]
 }
 if (length(args[3]) == 0 | is.na(args[3])) {
-  fittype = "photoZ_bc03_snorm_fritz"
+  fittype = "photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth"
 } else {
   fittype <- args[3]
 }
@@ -55,6 +56,12 @@ spec_ids = c(
 )
 if(do_spec){
   idx = spec_ids
+}else if(do_lrd){
+  idx = unlist(
+     fread(
+       paste0(main_dir, "/data/prospect/LRD_colour_selection_IDs.txt")
+     )
+   )
 }
 
 template_cols = names(
@@ -80,12 +87,14 @@ df_combine = foreach(ii = idx, .combine = rbind) %dopar% {
       astro$Dec = out$galInfo$Decmax
       astro$zQ50 = out$galInfo$z
       astro$DIC = NA
+      astro$selected = 1L
     }else{
       astro = out$astro
       astro$ID = out$galInfo$ID
       astro$RA = out$galInfo$RAmax
       astro$Dec = out$galInfo$Decmax
       astro$DIC = out$galInfo$DIC
+      astro$selected = 1L
     }
     
     rm(out)
@@ -98,6 +107,7 @@ df_combine = foreach(ii = idx, .combine = rbind) %dopar% {
     astro$Dec = phot_cat$ProFound$Decmax[ii]
     astro$DIC = NA
     astro$zQ50 = NA
+    astro$selected = 0L
   }
   return(astro)
 }

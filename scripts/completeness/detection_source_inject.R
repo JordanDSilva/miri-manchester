@@ -16,6 +16,8 @@ library(Highlander)
 library(furrr)
 library(purrr)
 library(stringr)
+library(minpack.lm)
+library(numDeriv)
 
 main_dir = "~/Documents/Epochs/source_inject/"
 fname = "smiles"
@@ -23,6 +25,13 @@ fname = "smiles"
 profound_cat = Rfits_read(paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits"))
 det_image = Rfits_read(paste0("~/Documents/Epochs/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"))
 pro_detect = readRDS(paste0("~/Documents/Epochs/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound.rds"))
+
+astro_cat = data.frame(fread(
+  paste0("~/Documents/Epochs/source_inject/smiles_survey/smiles_survey_mock_cat.csv")
+))
+phot_cat = data.frame(fread(
+  paste0("~/Documents/Epochs/source_inject/smiles_survey/smiles_survey_mock_eazy_photometry.csv")
+))
 
 dir.create(
   paste0(main_dir, fname, "/")
@@ -34,7 +43,7 @@ load(
   )
 )
 
-Nsample = 1000
+Nsample = 10000
 
 sample_R50_given_mag <- function(mag_val, kde2, n = 1) {
   
@@ -55,14 +64,13 @@ sample_R50_given_mag <- function(mag_val, kde2, n = 1) {
   10^(kde2$y[idx] + runif(n, -dy, dy))
 }
 
-source_inject = function(det_image, profound_cat, pro_detect, Nsample, fname = 'smiles'){
+source_inject = function(det_image, profound_cat, pro_detect, Nsample, astro_cat, fname = 'smiles'){
   
   fits_stub = paste0(main_dir, "/", fname, "/", fname, "_fake_sources.fits")
   mag_samples_stub = paste0(main_dir, "/", fname, "/", fname, "_fake_sources_mag_samples.rds")
-  pro_stub = paste0(main_dir, "/", fname, "/", fname, "_fake_sources_profound.rds")
+  pro_stub = paste0(main_dir, "/", fname, "/", fname, "_fake_sources_profound.rds") 
   phot_stub = paste0(main_dir, "/", fname, "/", fname, "_fake_sources_photometry.rds")
   
-  # obs_mag_density <- density(profound_cat$ProFound$mag, bw = "nrd0")
   obs_mag_density <- density(c(profound_cat$ProFound$mag, runif(2000, 28, 40)), bw = "nrd0")
   
   # Normalise to get a probability
@@ -75,10 +83,33 @@ source_inject = function(det_image, profound_cat, pro_detect, Nsample, fname = '
     lims = c(range(profound_cat$ProFound$mag), range(log10(profound_cat$ProFound$R50)))
   )
   
-  synthetic_mags = runif(
-    n = Nsample, min = 10, max = 40
+  det_F560W_flux_true = as.numeric(phot_cat$F560W_true_flux)
+  det_F770W_flux_true = as.numeric(phot_cat$F770W_true_flux)
+  
+  det_F560W_flux_test = as.numeric(phot_cat$F560W_flux)
+  det_F770W_flux_test = as.numeric(phot_cat$F770W_flux)
+  
+  det_F560W_flux_err = as.numeric(phot_cat$F560W_flux_err)
+  det_F770W_flux_err = as.numeric(phot_cat$F770W_flux_err)
+  
+  det_mag_true = -2.5*log10(colMeans(
+    rbind(det_F560W_flux_true, det_F770W_flux_true)
+  ))+8.9
+  det_mag_test = -2.5*log10(colMeans(
+    rbind(pmax(0,det_F560W_flux_test), pmax(0,det_F770W_flux_test)), 
+  ))+8.9
+  
+  eligible_idx <- which(det_mag_true > 10 & det_mag_true < 31)
+  
+  sampled_idx <- sample(
+    x    = eligible_idx,
+    size = Nsample
   )
   
+  astro_cat_detect_sample <- astro_cat[sampled_idx, ]
+  phot_cat_detect_sample <- phot_cat[sampled_idx, ]
+  
+  synthetic_mags = det_mag_true[sampled_idx]
   synthetic_R50 <- mapply(sample_R50_given_mag,
                           mag_val = synthetic_mags,
                           MoreArgs = list(kde2 = kde2, n = 1))
@@ -110,6 +141,7 @@ source_inject = function(det_image, profound_cat, pro_detect, Nsample, fname = '
     ),
     sky = list(bg = 0)
   )
+  
   ## Use profit to inject sources into frame
   start = Sys.time()
   model_sources = profitMakeModel(
@@ -176,92 +208,43 @@ source_inject = function(det_image, profound_cat, pro_detect, Nsample, fname = '
     radunit = "asec"
   )
   
-  hh_true = maghist(
-    samples_df$mag, plot = FALSE
+  fwrite(
+    phot_cat_detect_sample[match_idx$bestmatch$refID, ], 
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_uniform_detect_mock_eazy_photometry_recovered.csv")
   )
-  hh_true_detect = maghist(
-    samples_df$mag[match_idx$bestmatch$refID], plot = FALSE, breaks = hh_true$breaks
-  )
-  hh_detect = maghist(
-    detect_segstats$mag[match_idx$bestmatch$compareID], plot = FALSE, breaks = hh_true$breaks
-  )
-  
-  magplot(
-    hh_true$mids,
-    hh_detect$counts/hh_true$counts, 
-    ylim = c(0,1)
+  fwrite(
+    astro_cat_detect_sample[match_idx$bestmatch$refID, ], 
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_uniform_detect_mock_cat_recovered.csv")
   )
   
+  fwrite(
+    phot_cat_detect_sample, 
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_uniform_detect_mock_eazy_photometry.csv")
+  )
+  fwrite(
+    astro_cat_detect_sample, 
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_uniform_detect_mock_cat.csv")
+  )
+
   out = list(
     samples_df = samples_df,
     detect_segstats = detect_segstats,
     matched_segstats = detect_segstats[match_idx$bestmatch$compareID, ],
-    match_idx = match_idx
+    match_idx = match_idx,
+    model_sources = model_sources
+  )
+  
+  saveRDS(
+    out,
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_uniform_detect.rds")
+  )
+  Rfits_write_image(
+    fake_sources, 
+    paste0(main_dir, "/", fname, "_uniform_detect/", fname, "_injection_image.fits")
   )
   return(
     out
   )
 }
 
-compl_repeats = lapply(1:10, function(x){source_inject(det_image, profound_cat, pro_detect, Nsample, fname = 'smiles')})
-compl_repeats[[1]]
-
-magbins = seq(10, 40, 1.0)
-cols = hcl.colors(10, "Set 2")
-magplot(NA, xlim = c(10, 40), ylim = c(0,2.0))
-for(i in 1:10){
-  hh_true = maghist(
-    compl_repeats[[i]]$samples_df$mag,
-    breaks = magbins,
-    plot = FALSE
-  )
-  hh_detect = maghist(
-    compl_repeats[[i]]$matched_segstats$mag,
-    breaks = magbins,
-    plot = FALSE
-  )
-  points(
-    hh_true$mids,
-    hh_detect$counts/hh_true$counts, 
-    col = cols[i]
-  )
-}
-mag_true = unlist(lapply(1:10, function(i){compl_repeats[[i]]$samples_df$mag}))
-mag_detect = unlist(lapply(1:10, function(i){compl_repeats[[i]]$matched_segstats$mag}))
-mag_detect_true = unlist(lapply(1:10, function(i){compl_repeats[[i]]$samples_df$mag[compl_repeats[[i]]$match_idx$bestmatch$refID]}))
-
-hh_true = maghist(
-  mag_true,
-  breaks = magbins,
-  plot = FALSE
-)
-hh_detect = maghist(
-  mag_detect,
-  breaks = magbins,
-  plot = FALSE
-)
-hh_detect_true = maghist(
-  mag_detect_true,
-  breaks = magbins,
-  plot = FALSE
-)
-points(
-  hh_true$mids,
-  hh_detect$counts/hh_true$counts, 
-  pch = 16
-)
-points(
-  hh_true$mids,
-  (hh_detect$counts-hh_detect_true$counts)/hh_true$counts, 
-  pch = 15
-)
-magerr(
-  hh_true$mids,
-  hh_detect$counts/hh_true$counts,
-  sqrt( hh_detect$counts/hh_true$counts^2 * ((sqrt(hh_detect$counts)/hh_detect$counts)^2 + (sqrt(hh_true$counts)/hh_true$counts)^2) )
-)
-
-saveRDS(
-  compl_repeats,
-  paste0(main_dir, fname, "/", fname, "_mock_10detection_samples.rds")
-)
+out = source_inject(det_image, profound_cat, pro_detect, Nsample, astro_cat = astro_cat, fname = 'smiles')

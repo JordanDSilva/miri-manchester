@@ -259,3 +259,131 @@ fwrite(
   compl_df, 
   paste0(main_dir, "/", fname, "/", fname, "_det_mag_completeness_stats.csv")
 )
+
+## From completeness scripts
+calc_selection_3d = function(
+    zbins, zmids, ztrue, 
+    xtrue, xbins, xmids,
+    ytrue, ybins, ymids,
+    selection_idx,
+    ztest = NULL,
+    xtest = NULL,
+    ytest = NULL
+){
+  Ndim = c(length(zmids), length(xmids), length(ymids))
+  completeness_array = array(data = rep(0, prod(Ndim)), dim = Ndim)
+  purity_array = array(data = rep(0, prod(Ndim)), dim = Ndim)
+  
+  if(is.null(ztest)){
+    ztest = rnorm(length(ztrue), ztrue, 0.06)
+  }
+  if(is.null(xtest)){
+    xtest = rnorm(length(xtrue), xtrue, 0.3)
+    # xtest = xtrue
+  }
+  if(is.null(ytest)){
+    ytest = rnorm(length(ytrue), ytrue, 0.3)
+    # ytest = ytrue
+  }
+  
+  for(i in seq_along(zmids)){
+    for(j in seq_along(xmids)){
+      for(k in seq_along(ymids)){
+        
+        id_array_true = which(
+          (ztrue >= zbins[i]) & (ztrue < zbins[i+1]) &
+            (xtrue >= xbins[j]) & (xtrue < xbins[j+1]) &
+            (ytrue >= ybins[k]) & (ytrue < ybins[k+1])
+        )
+        
+        id_array_sel = which(
+          (ztrue >= zbins[i]) & (ztrue < zbins[i+1]) &
+            (xtrue >= xbins[j]) & (xtrue < xbins[j+1]) &
+            (ytrue >= ybins[k]) & (ytrue < ybins[k+1]) & 
+            (selection_idx)
+        )
+        
+        id_array_det_sel = which(
+          (ztest >= zbins[i]) & (ztest < zbins[i+1]) &
+            (xtest >= xbins[j]) & (xtest < xbins[j+1]) &
+            (ytest >= ybins[k]) & (ytest < ybins[k+1]) &
+            (selection_idx)
+        )
+        
+        id_in_bin = which(
+          abs(ztest[id_array_det_sel] - ztrue[id_array_det_sel])/(1 + ztrue[id_array_det_sel]) <= 0.15 & 
+            abs(xtest[id_array_det_sel] - xtrue[id_array_det_sel]) <= (xbins[j+1] - xbins[j]) & 
+            abs(ytest[id_array_det_sel] - ytrue[id_array_det_sel]) <= (ybins[k+1] - ybins[k])
+        )
+        
+        id_array_det_sel_exact = intersect(
+          id_array_sel, id_array_det_sel
+        )
+        
+        if(length(id_array_true) == 0){
+          completeness_array[i,j,k] = NA
+          purity_array[i,j,k] = NA
+        }else{
+          # completeness_array[i,j,k] = pmin(length(id_array_det_sel)/length(id_array_true),1)
+          completeness_array[i,j,k] = length(id_in_bin)/length(id_array_true)
+          purity_array[i,j,k] = length(id_in_bin)/length(id_array_det_sel)
+        }
+      }
+    }
+    
+    cont_mat = 1 - as.matrix(purity_array[i,,])
+    # cont_mat[cont_mat > 0.5] = 2
+    compl_mat = as.matrix(completeness_array[i,,])
+    
+    par(mfrow = c(1,2))
+    image(
+      x = xmids,
+      y = ymids,
+      z = compl_mat,
+      xlab = "Mstar",
+      ylab = "SFR",
+      col = hcl.colors(100, "YlOrRd", rev = TRUE),
+      xlim = range(xbins),
+      ylim = range(ybins), 
+    )
+    image.plot(
+      legend.only = TRUE,
+      zlim = c(0, 1),
+      col = hcl.colors(100, "YlOrRd", rev = TRUE),
+      legend.lab = "Completeness"
+    )
+    legend(
+      x = "topleft",
+      legend = c(
+        paste0("z = ", round(zmids[i],3)), 
+        paste0("Min = ", round(min(compl_mat, na.rm = TRUE), 3)),
+        paste0("Max = ", round(max(compl_mat, na.rm = TRUE), 3))
+      )
+    )
+    image(
+      x = xmids,
+      y = ymids,
+      z = cont_mat,
+      xlab = "Mstar",
+      ylab = "SFR",
+      col = hcl.colors(100, "YlOrRd", rev = TRUE),
+      xlim = range(xbins),
+      ylim = range(ybins), 
+    )
+    image.plot(
+      legend.only = TRUE,
+      zlim = c(0, 1),
+      col = hcl.colors(100, "YlOrRd", rev = TRUE),
+      legend.lab = "Contamination"
+    )
+    legend(
+      x = "topleft",
+      legend = c(
+        paste0("z = ", round(zmids[i],3)), 
+        paste0("Min = ", round(min(cont_mat, na.rm = TRUE), 3)),
+        paste0("Max = ", round(max(cont_mat, na.rm = TRUE), 3))
+      )
+    )
+  }
+  return( completeness_array )
+}

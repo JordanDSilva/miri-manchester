@@ -22,7 +22,7 @@ fname = "smiles"
 main_dir = "~/Documents/Epochs/"
 load(
   paste0(
-    main_dir, "data/prospect/prospect_mock_data_for_fitting.rda"
+    main_dir, "data/prospect_mock_data_for_fitting.rda"
   )
 )
 
@@ -37,6 +37,7 @@ mock_uniform_phot = data.frame(fread(
 mock_uniform_astro = data.frame(fread(
   "~/Documents/Epochs/source_inject/smiles_uniform/smiles_uniform_mock_cat.csv"
 ))
+mock_uniform_astro$ID = 1:dim(mock_uniform_astro)[1]
 
 test_F770W_mag = -2.5*log10(as.numeric(mock_uniform_phot$F770W_true_flux))+8.9
 
@@ -46,26 +47,20 @@ F770W_distribution = density(
   bw = "SJ"
 )
 
-F770W_down_sample = sample(
-  x = test_F770W_mag,
-  prob = approx(F770W_distribution$x, F770W_distribution$y, xout = test_F770W_mag, yleft = 0, yright = 0)$y,
+robust_idx = which(mock_uniform_astro$StellarMass > 1e3 & mock_uniform_astro$StellarMass < 1e12 & test_F770W_mag >= 10 & test_F770W_mag <= 40)
+
+# use this for the main survey
+sample_idx = sample(
+  x = robust_idx,
+  # prob = approx(F770W_distribution$x, F770W_distribution$y, xout = test_F770W_mag[robust_idx], yleft = 0, yright = 0)$y,
   size = 100000
 )
 
-sample_idx = which(test_F770W_mag %in% F770W_down_sample)
-control_idx = sample(1:500000, size = 100000)
-
-magplot(
-  mock_uniform_astro$z[sample_idx],
-  log10(mock_uniform_astro$StellarMass[sample_idx]),
-  pch = ".",
-  ylim = c(1, 15)
-)
-points(
-  mock_uniform_astro$z[control_idx],
-  log10(mock_uniform_astro$StellarMass[control_idx]),
-  col = "red", 
-  pch ="."
+# use this for training an emulator
+training_idx = sample(
+  x = robust_idx[robust_idx %notin% sample_idx],
+  # prob = approx(F770W_distribution$x, F770W_distribution$y, xout = test_F770W_mag[robust_idx], yleft = 0, yright = 0)$y,
+  size = 300000
 )
 
 fwrite(
@@ -77,7 +72,7 @@ fwrite(
   paste0(main_dir, "/source_inject/", fname, "_survey/", fname, "_survey_mock_cat.csv")
 )
 
-eazy_translate = read.table(paste0("~/Documents/Epochs/data/eazy/", fname, "/eazy_", fname, "_zphot.translate"))
+eazy_translate = read.table(paste0("~/Documents/Epochs/data/eazy/eazy_", fname, "_zphot.translate"))
 eazy_translate$V1 = str_remove_all(str_remove_all(eazy_translate$V1, "_app_0.32"), "_scaled")
 fwrite(
   eazy_translate, 
@@ -85,4 +80,13 @@ fwrite(
   sep = " ", 
   col.names = FALSE,
   row.names = FALSE
+)
+
+fwrite(
+  mock_uniform_phot[training_idx, ], 
+  paste0(main_dir, "/source_inject/", fname, "_survey/", fname, "_survey_mock_training_photometry.csv")
+)
+fwrite(
+  mock_uniform_astro[training_idx, ], 
+  paste0(main_dir, "/source_inject/", fname, "_survey/", fname, "_survey_mock_training_cat.csv")
 )

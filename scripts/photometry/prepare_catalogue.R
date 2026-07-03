@@ -49,26 +49,31 @@ segim_wcs = Rfits_read_image(
 frame_info = data.frame(fread(paste0("~/Documents/Epochs/data/depths/", fname, "_profound_frame_stats.csv")))
 
 ## star flags
-magplot(
-  -2.5*log10(aper_cat$F560W_flux_app_0.32)+8.9,
-  -2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32),
-  pch = "."
-)
-points(
-  -2.5*log10(star_cat$F560W_flux_aper32)+8.9,
-  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
-  pch = 16, col = "blue"
-)
-star_colour_lo = quantile(
-  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
-  probs = 0.05,
-  na.rm = TRUE
-)
-star_colour_hi = quantile(
-  -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
-  probs = 0.95,
-  na.rm = TRUE
-)
+# magplot(
+#   -2.5*log10(aper_cat$F560W_flux_app_0.32)+8.9,
+#   -2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32),
+#   pch = "."
+# )
+# points(
+#   -2.5*log10(star_cat$F560W_flux_aper32)+8.9,
+#   -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
+#   pch = 16, col = "blue"
+# )
+# points(
+#   -2.5*log10(aper_cat$F560W_flux_app_0.32[174])+8.9,
+#   -2.5*log10(aper_cat$F1280W_flux_app_0.32[174]/aper_cat$F560W_flux_app_0.32[174]),
+#   pch = 16, col = "red"
+# )
+# star_colour_lo = quantile(
+#   -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
+#   probs = 0.05,
+#   na.rm = TRUE
+# )
+# star_colour_hi = quantile(
+#   -2.5*log10(star_cat$F1280W_flux_aper32/star_cat$F560W_flux_aper32),
+#   probs = 0.95,
+#   na.rm = TRUE
+# )
 # abline(
 #   h = star_colour_lo
 # )
@@ -106,20 +111,10 @@ flag_hot_pixel = profound_cat$R50 <= 0.1 & profound_cat$flux/profound_cat$det_1s
 #   ], flip = TRUE
 # )
 
-flag_star_idx = (-2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32) > star_colour_lo & 
-  -2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32) < star_colour_hi) & 
-  profound_cat$R50 <= 0.1
-flag_star_idx[is.na(flag_star_idx)] = FALSE
-
-magplot(
-  profound_cat$mag, profound_cat$R50, log = "y", ylim = c(0.01, 1.5)
-)
-points(
-  profound_cat$mag[flag_hot_pixel], profound_cat$R50[flag_hot_pixel], pch = 16, col = "blue"
-)
-points(
-  profound_cat$mag[flag_star_idx & !flag_hot_pixel], profound_cat$R50[flag_star_idx & !flag_hot_pixel], pch = 16, col = "cyan"
-)
+# flag_star_idx = (-2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32) > star_colour_lo & 
+#   -2.5*log10(aper_cat$F1280W_flux_app_0.32/aper_cat$F560W_flux_app_0.32) < star_colour_hi) & aper_cat$F560W_flux_app_0.6/aper_cat$F560W_flux_app_0.16 >= 1.5 & -2.5*log10(aper_cat$F560W_flux_app_0.32)+8.9 <= 23
+#   # profound_cat$R50 <= 0.1
+# flag_star_idx[is.na(flag_star_idx)] = FALSE
 
 ## mask flags
 flag_mask_idx = profound_cat$Nmask/profound_cat$N100 > 0
@@ -150,10 +145,10 @@ for(i in which(flag_epochs_unmatch_idx)){
 }
 
 ## combine it all
-flag_all_idx = flag_hot_pixel | flag_star_idx | flag_mask_idx | flag_detection_idx | flag_epochs_unmatch_idx | flag_outside_nircam_idx
+flag_all_idx = flag_hot_pixel | flag_mask_idx | flag_epochs_unmatch_idx | flag_outside_nircam_idx
 
 profound_cat$flag_hotpixel = flag_hot_pixel
-profound_cat$flag_star = flag_star_idx
+# profound_cat$flag_star = flag_star_idx
 profound_cat$flag_mask = flag_mask_idx
 profound_cat$flag_det = flag_detection_idx
 profound_cat$flag_epochs_unmatch = flag_epochs_unmatch_idx
@@ -312,20 +307,6 @@ maskfrac_filters_idx = maskfrac_filters >= 0.5
 negative_fluxes_idx = combined_photometry_tot + 4*combined_photometry_tot_err <= 0 ## 4sigma still negative
 negative_fluxes_idx[is.na(negative_fluxes_idx)] = TRUE 
 
-# combined_photometry_tot[maskfrac_filters_idx] = -999
-# combined_photometry_col[maskfrac_filters_idx] = -999
-# combined_photometry_a16[maskfrac_filters_idx] = -999
-# combined_photometry_a32[maskfrac_filters_idx] = -999
-# combined_photometry_a50[maskfrac_filters_idx] = -999
-# combined_photometry_a60[maskfrac_filters_idx] = -999
-# 
-# combined_photometry_tot[negative_fluxes_idx] = -999
-# combined_photometry_col[negative_fluxes_idx] = -999
-# combined_photometry_a16[negative_fluxes_idx] = -999
-# combined_photometry_a32[negative_fluxes_idx] = -999
-# combined_photometry_a50[negative_fluxes_idx] = -999
-# combined_photometry_a60[negative_fluxes_idx] = -999
-
 MW_foreground_extinction_func = function(phot_cat, err_cat){
   ext_corr = sweep(phot_cat, 2, MW_foreground_extinction$A_flux_inv[1:dim(phot_cat)[2]], `*`)
   ext_err_corr = sweep(err_cat, 2, MW_foreground_extinction$A_flux_inv[1:dim(err_cat)[2]], `*`)
@@ -392,4 +373,3 @@ Rfits_write(
   the_catalogue, 
   filename = paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits")
 )
-

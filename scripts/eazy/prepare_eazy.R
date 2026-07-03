@@ -161,6 +161,8 @@ fwrite(
   row.names = FALSE
 )
 
+# df_flux[, grepl("F.+M", filters_info$filters)] = -999
+
 fwrite(
   cbind(
     ID = phot_cat$ProFound$ID, RA = phot_cat$ProFound$RAmax, Dec = phot_cat$ProFound$Decmax, df_flux, df_flux_err

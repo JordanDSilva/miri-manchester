@@ -43,6 +43,10 @@ eazy_zPDFs_normals = data.frame(fread(
 eazy_stats = data.frame(fread(
   paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
 ))
+eazy = Rfits_read_table(
+  paste0(main_dir, "/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.zout.fits")
+)
+eazy_stats$z_ml = eazy$z_ml
 
 pfunc=function(parm){
   

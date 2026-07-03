@@ -202,10 +202,22 @@ hessian_Pz_plot = function(kk){
   )
 }
 
-agn_blue_sfhz = compute_eazy_stuff(
+agn_blue_sfhz_stats = compute_eazy_stuff(
   eazy_dir, 
   "smiles",
   "_agn_blue_sfhz"
+)
+
+larson_stats = compute_eazy_stuff(
+  eazy_dir, 
+  "smiles",
+  "_larson"
+)
+
+sfhz_carnall_stats = compute_eazy_stuff(
+  eazy_dir, 
+  "smiles",
+  "_sfhz_carnall"
 )
 
 # idx = zbest_integrals >= 0.6
