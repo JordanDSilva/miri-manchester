@@ -36,19 +36,23 @@ from sklearn.model_selection import train_test_split
 # Config
 # ----------------------------------------------------------------------
 main_dir = os.path.expanduser("~/Documents/Epochs/source_inject/")
-fname = "smiles_survey"
+fname = "smiles_large"
 
 depths_path = os.path.expanduser(
     "~/Documents/Epochs/data/depths/smiles_profound_frame_stats.csv"
 )
-astro_cat_path = os.path.join(main_dir, fname, f"{fname}_mock_training_cat.csv")
-phot_cat_path = os.path.join(main_dir, fname, f"{fname}_mock_training_photometry.csv")
-
+astro_cat_path = os.path.join(main_dir, fname, f"{fname}_mock_cat.csv")
+phot_cat_path = os.path.join(main_dir, fname, f"{fname}_mock_photometry.csv")
 BAND_NAMES = [
-    "F435W", "F606W", "F775W", "F814W", "F850LP",
-    "F090W", "F115W", "F150W", "F200W", "F277W", "F335M", "F356W", "F410M", "F444W",
-    "F560W", "F770W", "F1000W", "F1280W", "F1500W", "F1800W", "F2100W", "F2550W",
+    "F090W", "F115W", "F150W", "F277W", "F444W",
+    "F560W", "F770W", 
 ]
+# BAND_NAMES = [
+#     "F435W", "F606W", "F775W", "F814W", "F850LP",
+#     "F090W", "F115W", "F150W", "F200W", "F277W", "F335M", "F356W", "F410M", "F444W",
+#     "F560W", "F770W", "F1000W", "F1280W", "F1500W", "F1800W", "F2100W", "F2550W",
+# ]
+# BAND_NAMES = ['F435W','F606W','F070W','F775W','F814W','F090W','F850LP','F115W','F150W','F162M','F182M','F200W','F210M','F250M','F277W','F300M','F335M','F356W','F410M','F430M','F444W','F460M','F480M','F560W','F770W','F1000W','F1280W','F1500W','F1800W','F2100W','F2550W']
 FLUX_COLS = [f"{b}_flux" for b in BAND_NAMES]
 
 TARGET_COLS = ["z", "StellarMass", "SFR10", "AGNlum", "UV1500", "UV1500AGN"]

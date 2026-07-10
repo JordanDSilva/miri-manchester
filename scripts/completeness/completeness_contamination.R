@@ -61,10 +61,11 @@ zspec_zphot_plot = function(zphot, zspec, zphot_lim = 0){
   magplot(
     zphot,
     zspec, 
-    xlim = c(0, 15),
-    ylim = c(0, 15),
+    xlim = c(0, 40),
+    ylim = c(0, 40),
     xlab = "zphot",
-    ylab = "zspec"
+    ylab = "zspec",
+    pch = "."
   )
   legend(
     x = "topright",
@@ -77,19 +78,28 @@ zspec_zphot_plot = function(zphot, zspec, zphot_lim = 0){
 
 zspec_zphot_plot(
   zphot = astro_cat_nn$z,
-  zspec = astro_cat$z
+  zspec = astro_cat$z,
+  zphot_lim = 10
 )
 zspec_zphot_plot(
   zphot = eazy$z_ml,
   zspec = astro_cat$z
 )
 
-magbin(
+magplot(
   log10(astro_cat$StellarMass),
-  log10(astro_cat_nn$StellarMass), 
+  log10(astro_cat_nn$z), 
   pch = ".",
+  col = adjustcolor("black", 0.3)
 )
 
+maghist(
+  log10(astro_cat$StellarMass)-
+  log10(astro_cat_nn$StellarMass)
+)
+maghist(
+  ((astro_cat$z)-(astro_cat_nn$z))/(1+astro_cat$z)
+)
 
 compute_peak_integrals = function(eazy_zPDFs, eazy, kk){
   zgrid = eazy_zPDFs$zgrid
@@ -182,7 +192,7 @@ foo_Mstar = calc_selection_z_M(
   zbins = zbins,
   zmids = zmids,
   ztest = astro_cat_nn$z,
-  ztrue = astro_cat$z,
+  ztrue = astro_cat_nn$z,
   xbins = Mstar_bins,
   xmids = Mstar_mids,
   xtrue = log10(astro_cat$StellarMass),
@@ -250,7 +260,7 @@ saveRDS(compl_mat, "~/Desktop/comp_mat_test.rds")
 plot_matrices(foo_MUV)
 plot_matrices(foo_Mstar)
 
-kk = 8
+kk = 1
 magplot(
   Mstar_mids,
   compl_mat[kk,],

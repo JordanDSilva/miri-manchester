@@ -31,9 +31,9 @@ astro_cat = data.frame(fread(
 phot_cat = data.frame(fread(
   paste0("~/Documents/Epochs/source_inject/", fname, "/", fname, "_mock_eazy_photometry_recovered.csv")
 ))
-astro_cat_nn = data.frame(fread(
-  paste0("~/Documents/Epochs/source_inject/", fname, "/", fname, "_nn_predictions.csv")
-))
+# astro_cat_nn = data.frame(fread(
+#   paste0("~/Documents/Epochs/source_inject/", fname, "/", fname, "_nn_predictions.csv")
+# ))
 
 eazy_zPDFs = data.frame(fread(
   paste0("~/Documents/Epochs/source_inject/", fname, "/eazy/", fname, "_mock_photometry_eazy_zPDF",fname_append, ".csv")
@@ -101,7 +101,7 @@ selection_idx = astro_cat_injected$ID %in% astro_cat$ID
 zbins = seq(0.0, 40.0, 1.0)
 zmids = zbins[1:(length(zbins)-1)] + diff(zbins)/2
 
-Mstar_bins = seq(3, 13, 0.75)
+Mstar_bins = seq(3, 13, 1.0)
 Mstar_mids = Mstar_bins[1:(length(Mstar_bins)-1)] + diff(Mstar_bins)/2.0
 
 MUV_bins = seq(-32, -10, 1.0)
@@ -162,12 +162,12 @@ calc_selection_z_M = function(
 foo_Mstar = calc_selection_z_M(
   zbins = zbins,
   zmids = zmids,
-  ztest = eazy$z_ml,
+  ztest = astro_cat_injected$z,
   ztrue = astro_cat_injected$z,
   xbins = Mstar_bins,
   xmids = Mstar_mids,
   xtrue = log10(astro_cat_injected$StellarMass),
-  xtest = log10(astro_cat_nn$StellarMass),
+  xtest = log10(astro_cat_injected$StellarMass),
   # selection_idx = rep(1L, length(eazy$z_ml[astro_cat_injected$ID %in% astro_cat$ID]))
   selection_idx = selection_idx == 1L
 )

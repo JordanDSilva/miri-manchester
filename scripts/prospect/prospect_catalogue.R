@@ -25,7 +25,7 @@ if (length(args[2]) == 0 | is.na(args[2])) {
   main_dir <- args[2]
 }
 if (length(args[3]) == 0 | is.na(args[3])) {
-  fittype = "photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth"
+  fittype = "photoZ_bc03_snorm_fritz_norm_eazy"
 } else {
   fittype <- args[3]
 }

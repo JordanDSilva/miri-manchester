@@ -5,18 +5,18 @@ library(doParallel)
 
 ## Compute AGNfractions in filters?
 
-ncores = 1
+ncores = 8
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args[1]) == 0 | is.na(args[1])) {
+if (length(args[1]) == 0 | is.na(args[2])) {
   main_dir = "~/Documents/Epochs/"
 } else {
   main_dir <- args[1]
 }
 
 if (length(args[2]) == 0 | is.na(args[2])) {
-  fittype = "photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth"
+  fittype = "photoZ_bc03_snorm_fritz_norm_eazy"
 } else {
   fittype <- args[2]
 }
@@ -28,6 +28,8 @@ load(
 Ndim = dim(phot_cat$ProFound)[1]
 
 results_list <- vector("list", Ndim)
+full_posts <- vector("list", Ndim)
+
 for(i in 1:Ndim){
   message(i)
   
@@ -99,6 +101,8 @@ for(i in 1:Ndim){
     }
     stopImplicitCluster()
     
+    full_posts[[i]] <- phot_samples
+    
     med_ = colMedians(as.matrix(phot_samples))
     Q16_ = colQuantiles(as.matrix(phot_samples), probs = 0.16)
     Q84_ = colQuantiles(as.matrix(phot_samples), probs = 0.84)
@@ -127,4 +131,9 @@ write.csv(
   results_df, 
   paste0(main_dir, "/data/prospect/", fittype, "_fit_photom.csv"), 
   row.names = FALSE
+)
+
+saveRDS(
+  full_posts, 
+  paste0(main_dir, "/data/prospect/", fittype, "_fit_photom_post.rds")
 )

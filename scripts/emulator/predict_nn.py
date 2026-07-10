@@ -23,9 +23,8 @@ from astropy.io import fits
 # Must match train_sed_nn.py
 # ----------------------------------------------------------------------
 BAND_NAMES = [
-    "F435W", "F606W", "F775W", "F814W", "F850LP",
-    "F090W", "F115W", "F150W", "F200W", "F277W", "F335M", "F356W", "F410M", "F444W",
-    "F560W", "F770W", "F1000W", "F1280W", "F1500W", "F1800W", "F2100W", "F2550W",
+    "F090W", "F115W", "F150W", "F277W", "F444W",
+    "F560W", "F770W"
 ]
 FLUX_COLS = [f"{b}_flux" for b in BAND_NAMES]
 

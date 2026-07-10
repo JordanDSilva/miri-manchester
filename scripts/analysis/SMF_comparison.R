@@ -74,32 +74,45 @@ double_schechter = function(x, p){
 mstar_bins = seq(6.5, 12.5, 0.5)
 mstar_mids = mstar_bins[-1] - diff(mstar_bins)*0.5
 
-
-zidx = which( combined_cat$zQ50 >= zbins[kk] & combined_cat$zQ50 < zbins[kk + 1])
-Vmax = (cosdistCoVol(z = zbins[kk+1], ref = "737")
-        - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$ v * 60^-2 * (pi/180)^2)/(4*pi)
-
-mstar_zbin = log10(combined_cat$StellarMassQ50[zidx])
-mstar_err_zbin = 0.5*(log10(combined_cat$StellarMassQ84[zidx]) - log10(combined_cat$StellarMassQ16[zidx]))
-
 zbins = c(3.5, 4.5, 5.5, 6.5, 7.5, 8.5)
-png("~/Documents/Epochs/plots/SMF_Shuntov25_highz.png", width = 15, height = 10, units = "in", res = 240)
+zmids = zbins[-1] - diff(zbins)*0.5
+
+png("~/Documents/Epochs/plots/SMF_Shuntov25_highz_vmax.png", width = 15, height = 10, units = "in", res = 240)
 par(mfrow = c(2,3), mar = c(2.5, 2.5, 0.5, 0.5), oma = c(2.5, 2.5, 1.5, 1.5))
 for(kk in 1:(length(zbins)-1)){
   zidx = which( combined_cat$zQ50 >= zbins[kk] & combined_cat$zQ50 < zbins[kk + 1])
-  # Vmax = (cosdistCoVol(z = pmin(zbins[kk+1], Vmax_data$zmax[zidx]), ref = "737")
-  #         - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$F444W_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
-  Vmax = (cosdistCoVol(z = zbins[kk+1], ref = "737")
-          - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$detect_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
+  Vmax = (cosdistCoVol(z = pmin(zbins[kk+1], Vmax_data$zmax[zidx]), ref = "737")
+          - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$F444W_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
+  # Vmax = (cosdistCoVol(z = zbins[kk+1], ref = "737")
+  #         - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$detect_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
   
   mstar_zbin = log10(combined_cat$StellarMassQ50[zidx])
   mstar_err_zbin = 0.5*(log10(combined_cat$StellarMassQ84[zidx]) - log10(combined_cat$StellarMassQ16[zidx]))
   
-  hh = maghist(
-    mstar_zbin,
-    breaks = mstar_bins,
-    plot = FALSE
+  mlim = quantile(
+    mstar_zbin + 0.4 * (-2.5*log10(phot_cat$Phot32$F444W_scaled_flux_err_app_0.32[zidx]/frame_info$F444W_5sigma_depth_32asec)), 
+    probs = 0.6
   )
+  
+  # hh = maghist(
+  #   mstar_zbin,
+  #   breaks = mstar_bins,
+  #   plot = FALSE
+  # )
+  
+  Veff_err = vector(length = length(mstar_mids))
+  Veff = vector(length = length(mstar_mids))
+  for(i in 1:length(mstar_mids)){
+    midx = mstar_zbin >= mstar_bins[i] & mstar_zbin < mstar_bins[i+1] & mstar_zbin >= mlim
+    y = sum(
+      1/Vmax[midx], na.rm = TRUE
+    )
+    y_err = sqrt(sum(
+      (1/Vmax[midx])^2, na.rm = TRUE
+    ))
+    Veff[i] = y
+    Veff_err[i] = y_err
+  }
   magplot(
     NA,
     log = "y",
@@ -143,15 +156,28 @@ for(kk in 1:(length(zbins)-1)){
     col = "cornflowerblue",
     lwd = 3
   )
+  # magerr(
+  #   hh$mids,
+  #   hh$counts/(Vmax*diff(hh$breaks)*0.5),
+  #   xlo = 0.25,
+  #   ylo = sqrt(hh$counts)/(Vmax*diff(hh$breaks)*0.5)
+  # )
+  # points(
+  #   hh$mids,
+  #   hh$counts/(Vmax*diff(hh$breaks)*0.5),
+  #   cex = 1.5, 
+  #   pch = 16, 
+  #   col = adjustcolor("black", 0.8)
+  # )
   magerr(
-    hh$mids,
-    hh$counts/(Vmax*diff(hh$breaks)*0.5),
-    xlo = 0.25,
-    ylo = sqrt(hh$counts)/(Vmax*diff(hh$breaks)*0.5)
+    mstar_mids,
+    Veff/(diff(mstar_bins)*0.5),
+    xlo = unique(diff(mstar_bins)*0.5),
+    ylo = Veff_err/(diff(mstar_bins)*0.5)
   )
   points(
-    hh$mids,
-    hh$counts/(Vmax*diff(hh$breaks)*0.5),
+    mstar_mids,
+    Veff/(diff(mstar_bins)*0.5),
     cex = 1.5, 
     pch = 16, 
     col = adjustcolor("black", 0.8)
@@ -185,13 +211,32 @@ zbins = c(0.2, 0.5, 0.8, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 
 par(mfrow = c(3,5), mar = c(2.5, 2.5, 0.5, 0.5), oma = c(2.5, 2.5, 1.5, 1.5))
 for(kk in 1:(length(zbins)-1)){
   zidx = which( combined_cat$zQ50 >= zbins[kk] & combined_cat$zQ50 < zbins[kk + 1])
-  # Vmax = (cosdistCoVol(z = pmin(zbins[kk+1], Vmax_data$zmax[zidx]), ref = "737")
-  #         - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$F444W_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
-  Vmax = (cosdistCoVol(z = zbins[kk+1], ref = "737")
+  Vmax = (cosdistCoVol(z = pmin(zbins[kk+1], Vmax_data$zmax[zidx]), ref = "737")
           - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$F444W_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
+  # Vmax = (cosdistCoVol(z = zbins[kk+1], ref = "737")
+  #         - cosdistCoVol(z = zbins[kk], ref = "737")) * 1e9 * (frame_info$F444W_effarea_amin2 * 60^-2 * (pi/180)^2)/(4*pi)
   
   mstar_zbin = log10(combined_cat$StellarMassQ50[zidx])
   mstar_err_zbin = 0.5*(log10(combined_cat$StellarMassQ84[zidx]) - log10(combined_cat$StellarMassQ16[zidx]))
+  
+  mlim = quantile(
+    mstar_zbin + 0.4 * (-2.5*log10(phot_cat$Phot32$F444W_scaled_flux_err_app_0.32[zidx]/frame_info$F444W_5sigma_depth_32asec)), 
+    probs = 0.6
+  )
+  
+  Veff_err = vector(length = length(mstar_mids))
+  Veff = vector(length = length(mstar_mids))
+  for(i in 1:length(mstar_mids)){
+    midx = mstar_zbin >= mstar_bins[i] & mstar_zbin < mstar_bins[i+1] & mstar_zbin >= mlim
+    y = sum(
+      1/Vmax[midx], na.rm = TRUE
+    )
+    y_err = sqrt(sum(
+      (1/Vmax[midx])^2, na.rm = TRUE
+    ))
+    Veff[i] = y
+    Veff_err[i] = y_err
+  }
   
   hh = maghist(
     mstar_zbin,
@@ -221,28 +266,41 @@ for(kk in 1:(length(zbins)-1)){
     poly = TRUE,
     border = NA
   )
-  # lines(
-  #   seq(6.5, 12.5, 0.01),
-  #   double_schechter(
-  #     x = seq(6.5, 12.5, 0.01),
-  #     p = c(
-  #       10.963 + 0.211 * zbins[kk] - 0.094 * zbins[kk]^2,
-  #       -1.627 + 0.428 * zbins[kk] - 0.154 * zbins[kk]^2,
-  #       -0.539 + 0.053 * zbins[kk] - 0.017 * zbins[kk]^2,
-  #       -3.212 + 0.059 * zbins[kk] - 0.105 * zbins[kk]^2,
-  #       -2.592 - 0.515 * zbins[kk] + 0.045 * zbins[kk]^2
-  #     )
-  #   )
+  lines(
+    seq(6.5, 12.5, 0.01),
+    double_schechter(
+      x = seq(6.5, 12.5, 0.01),
+      p = c(
+        10.963 + 0.211 * zbins[kk] - 0.094 * zbins[kk]^2,
+        -1.627 + 0.428 * zbins[kk] - 0.154 * zbins[kk]^2,
+        -0.539 + 0.053 * zbins[kk] - 0.017 * zbins[kk]^2,
+        -3.212 + 0.059 * zbins[kk] - 0.105 * zbins[kk]^2,
+        -2.592 - 0.515 * zbins[kk] + 0.045 * zbins[kk]^2
+      )
+    )
+  )
+  # magerr(
+  #   hh$mids,
+  #   hh$counts/(Vmax*diff(hh$breaks)*0.5),
+  #   xlo = 0.25,
+  #   ylo = sqrt(hh$counts)/(Vmax*diff(hh$breaks)*0.5)
+  # )
+  # points(
+  #   hh$mids,
+  #   hh$counts/(Vmax*diff(hh$breaks)*0.5),
+  #   cex = 1.5, 
+  #   pch = 16, 
+  #   col = adjustcolor("black", 0.8)
   # )
   magerr(
-    hh$mids,
-    hh$counts/(Vmax*diff(hh$breaks)*0.5),
-    xlo = 0.25,
-    ylo = sqrt(hh$counts)/(Vmax*diff(hh$breaks)*0.5)
+    mstar_mids,
+    Veff/(diff(mstar_bins)*0.5),
+    xlo = unique(diff(mstar_bins)*0.5),
+    ylo = Veff_err/(diff(mstar_bins)*0.5)
   )
   points(
-    hh$mids,
-    hh$counts/(Vmax*diff(hh$breaks)*0.5),
+    mstar_mids,
+    Veff/(diff(mstar_bins)*0.5),
     cex = 1.5, 
     pch = 16, 
     col = adjustcolor("black", 0.8)
