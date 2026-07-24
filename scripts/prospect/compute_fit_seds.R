@@ -86,11 +86,15 @@ index_parallel_job_array = function(INDEX, ncores, N, start_Nindex, end_index){
   return( job_vec ) 
 }
 
+message(
+  paste0("Total number of objects = ", dim(phot_cat$PhotTot)[1])
+)
+
 if(slurm_paralel_job_array){
   fit_idx = index_parallel_job_array(
     INDEX = idx, 
     ncores = ncores, 
-    N = dim(phot_cat$Phot32)[1], 
+    N = dim(phot_cat$PhotTot)[1], 
     start_Nindex = 1,
     end_index = max_slurm_jobs
   )
@@ -273,11 +277,12 @@ for(i in fit_idx){
     prospect_dir, "galID_", i, ".rds"
   )
   
-  if(file.exists(file_stub)){
-    save_stub = paste0(
-      save_dir, "galID_", i, ".rds"
-    )
-    
+  save_stub = paste0(
+    save_dir, "galID_", i, ".rds"
+  )
+  
+  if(file.exists(file_stub) & !file.exists(save_stub)){
+
     out = readRDS(file_stub)
     
     post = out$post

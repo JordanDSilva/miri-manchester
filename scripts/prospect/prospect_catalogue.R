@@ -34,10 +34,16 @@ if(do_spec){
   save_dir = paste0(
     main_dir, "data/prospect/", fittype, "_spec/"
   )
+  sed_dir = paste0(
+    main_dir, "data/prospect_seds/", fittype, "_spect/"
+  )
   cat_stub = paste0(main_dir, "data/prospect/", fittype, "_spec_astro_cat.csv")
 }else{
   save_dir = paste0(
     main_dir, "data/prospect/", fittype, "/"
+  )
+  sed_dir = paste0(
+    main_dir, "data/prospect_seds/", fittype, "/"
   )
   cat_stub = paste0(main_dir, "data/prospect/", fittype, "_astro_cat.csv")
 }
@@ -69,50 +75,53 @@ template_cols = names(
     list.files(save_dir, full.names = TRUE)[1]
   )$astro
 )
+template_cols_sed = names(
+  readRDS(
+    list.files(sed_dir, full.names = TRUE)[1]
+  )$phot
+)
 
 registerDoParallel(cores = ncores)
-df_combine = foreach(ii = idx, .combine = rbind) %dopar% {
+df_combine = data.frame(foreach(ii = idx, .combine = rbind) %dopar% {
   message("Running galID: ", ii)
   read_stub = paste0(
     save_dir, "/galID_",ii, ".rds"
   )
+  read_sed_stub = paste0(
+    sed_dir, "/galID_",ii, ".rds"
+  )
   
   if(file.exists(read_stub)){
     out = readRDS(read_stub)
+    sed = readRDS(read_sed_stub)
     
-    if(fittype == "power_laws"){
-      astro = out$astro
-      astro$ID = out$galInfo$ID
-      astro$RA = out$galInfo$RAmax
-      astro$Dec = out$galInfo$Decmax
-      astro$zQ50 = out$galInfo$z
-      astro$DIC = NA
-      astro$selected = 1L
-    }else{
-      astro = out$astro
-      astro$ID = out$galInfo$ID
-      astro$RA = out$galInfo$RAmax
-      astro$Dec = out$galInfo$Decmax
-      astro$DIC = out$galInfo$DIC
-      astro$selected = 1L
-    }
+    astro = out$astro
+    astro = unlist( c( astro, sed$phot[!grepl("ID", names(sed$phot))] ) )
+    
+    astro$ID = out$galInfo$ID
+    astro$RA = out$galInfo$RAmax
+    astro$Dec = out$galInfo$Decmax
+    astro$DIC = out$galInfo$DIC
+    astro$NfinalMCMC = dim(out$highout$LD_last$Posterior1)[1]
+    astro$selected = 1L
     
     rm(out)
     gc()
   }
   else{
-    astro = setNames(as.data.frame(matrix(NA, nrow = 1, ncol = length(template_cols))), template_cols)
+    astro = setNames(as.data.frame(matrix(NA, nrow = 1, ncol = length(c(template_cols, template_cols_sed)))), c(template_cols, template_cols_sed))
     astro$ID = ii
     astro$RA = phot_cat$ProFound$RAmax[ii]
     astro$Dec = phot_cat$ProFound$Decmax[ii]
     astro$DIC = NA
-    astro$zQ50 = NA
+    astro$NfinalMCMC = NA
     astro$selected = 0L
   }
   return(astro)
-}
+})
 stopImplicitCluster()
+
 fwrite(
-  data.frame(df_combine), 
+  df_combine, 
   cat_stub
 )

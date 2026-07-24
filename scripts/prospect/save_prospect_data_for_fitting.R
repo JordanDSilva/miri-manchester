@@ -16,16 +16,14 @@ library(RColorBrewer)
 ## Make a .rda with all of the data I will need for fitting
 
 main_dir = "~/Documents/Epochs/"
-fname = "smiles"
-
-smiles_miri_nirspec = Rfits_read_table(paste0(main_dir, "data/spec/hlsp_smiles_jwst_nirspec_goodss_multi_v1.0_catalog.fits"))
+fname = "miri"
 
 todaysdate = Sys.Date()
 
 filters_info = data.frame(fread(paste0(main_dir, "data/throughputs/wavelengths.txt")))
 filter_transforms = readRDS(paste0(main_dir, "data/throughputs/filt_funcs.rds"))
 
-frame_info = data.frame(fread(paste0(main_dir, "data/depths/", fname, "_profound_frame_stats.csv")))
+# frame_info = data.frame(fread(paste0(main_dir, "data/depths/", fname, "_profound_frame_stats.csv")))
 
 phot_cat = Rfits_read(
   paste0(main_dir, "/data/catalogues/", fname, "_profound_multiband_cat.fits")
@@ -33,7 +31,7 @@ phot_cat = Rfits_read(
 
 ## load in EAZY zPDFs and make approxfuns
 ## make sure to put zPDF prior back to prior func
-fname_append = "_agn_blue_sfhz"
+fname_append = "_agn_blue_sfhz_col"
 eazy_zPDFs = data.frame(fread(
   paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
 ))
@@ -126,8 +124,7 @@ constraintfunc_driver26_alpha = function(parm, Data){
 
 save(
   todaysdate,
-  frame_info, filters_info, filter_transforms, 
-  smiles_miri_nirspec,
+  filters_info, filter_transforms, 
   phot_cat, 
   pfunc, pfunc_driver26_alpha, pfunc_no_tau_birth,
   constraintfunc, constraintfunc_driver26_alpha, 

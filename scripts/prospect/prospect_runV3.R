@@ -13,15 +13,15 @@ set.seed(666)
 
 # main_dir = "/scratch/"
 
-CMANiters = 500
-LDNiters = 1000
+CMANiters = 2000
+LDNiters = 2000
 ncores = 1 
 max_slurm_jobs = 84 # should be the maximum of your job array
-slurm_paralel_job_array = TRUE
+slurm_paralel_job_array = FALSE
 overwrite = FALSE
 
 do_spec = FALSE
-do_robust = TRUE
+do_robust = FALSE
 redo_fits = FALSE
 
 min_pc_err = 0.1
@@ -71,12 +71,11 @@ load(
 ## eazy zPDFs loaded
 
 robust_ids = which(
-  phot_cat$ProFound$flag == 0
+  phot_cat$ProFound$flag == 0 & eazy_stats$z_ml > 0
 )
-redo_ids = unlist(
- fread(
-  paste0(main_dir, "/data/prospect/poor_fits_IDs.txt")
-))
+if(redo_fits){
+  stop("Do something here")
+}
 
 spec_ids = c(
   2193, 725, 781, 2797, 3870, 3123, 5507, 2269, 1903, 3618, 2294, 2362, 3327, 1342, 1869, 1245, 1733, 1810, 196, 4459, 743, 279, 2074, 2591, 2247, 578, 3356, 3012, 3294, 2535,
@@ -87,11 +86,11 @@ spec_ids = c(
   2437, 3010, 190, 2683, 1453, 1745, 5219, 2257, 2962, 2843, 2235, 298
 )
 
-flux_cat = data.frame(phot_cat$Phot32)
-df_flux = flux_cat[, paste0(filters_info$filters, "_flux_app_0.32")]
-df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_flux_err_app_0.32")]
+flux_cat = data.frame(phot_cat$PhotTot)
+df_flux = flux_cat[, paste0(filters_info$filters, "_fluxt")]
+df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_fluxt_err")]
 
-## standard BC03 with Fritz AGN model, normal prior on eazy zbest, no tau birth prior
+## standard BC03 with Fritz AGN model, normal prior on eazy zbest, no tau birth prior from Thorne21
 do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
   message("Running gal: ", kk)
   
@@ -118,7 +117,8 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
     rule = 2
   )## check z logged
   
-  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  # zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  zeazy = eazy_stats$z_ml[kk]
   
   pfunc_zPDF = function(parm){
     prior = pfunc_no_tau_birth(parm) + 
@@ -136,7 +136,7 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
       emission = TRUE,
       photoz = TRUE,
       IGMfunc = "Inoue14",
-      
+
       mtrunc = 2,
       
       AGNrm = 60,
@@ -153,10 +153,13 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
     speclib = BC03hr,
     Dale = Dale_NormTot,
     filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
     
     SFH=SFHfunc,
     AGN = Fritz,
     Dale_M2L_func = Dale_M2L_func,
+    
     parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
     mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
     logged = c(
@@ -196,6 +199,7 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
   startpoint["AGNlum"] = 44
   startpoint["z"] = log10(zeazy) ## start point in redshift that most galaxies are probably close to z=1 ? 
   
+  start = Sys.time()
   highout = Highlander(
     startpoint, 
     Data, 
@@ -207,6 +211,7 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
     lower=Data$intervals$lo, 
     upper=Data$intervals$hi
   )
+  print(Sys.time() - start)
   
   Data$fit = 'check'
   bestfit = ProSpectSEDlike(highout$par, Data=Data)
@@ -219,7 +224,7 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
   )
   return(out)
 }
-## Standard Bc03 with No Fritz, normal prior on eazy zbest, no tau birth prior
+## Standard Bc03 with No Fritz, normal prior on eazy zbest, no tau birth prior from Thorne21
 do_photoz_bc03_snorm_norm_eazy = function(kk){
   message("Running gal: ", kk)
   
@@ -246,7 +251,8 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
     rule = 2
   )## check z logged
   
-  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  # zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  zeazy = eazy_stats$z_ml[kk]
   
   pfunc_zPDF = function(parm){
     prior = pfunc_no_tau_birth(parm) + 
@@ -276,6 +282,8 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
     speclib = BC03hr,
     Dale = Dale_NormTot,
     filtout = filter_transforms,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
     
     SFH=SFHfunc,
     Dale_M2L_func = Dale_M2L_func,
@@ -337,7 +345,7 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
   )
   return(out)
 }
-## Standard Bc03 with SKIRTOR, normal prior on eazy zbest, no tau birth prior
+## Standard Bc03 with SKIRTOR, normal prior on eazy zbest, no tau birth prior from Thorne21
 do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
   message("Running gal: ", kk)
   
@@ -364,7 +372,8 @@ do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
     rule = 2
   )## check z logged
   
-  zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  # zeazy = eazy_zPDFs$zgrid[which.max(zPDF_load)]
+  zeazy = eazy_stats$z_ml[kk]
   
   pfunc_zPDF = function(parm){
     prior = pfunc_no_tau_birth(parm) + 
@@ -399,6 +408,8 @@ do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
     speclib = BC03hr,
     Dale = Dale_NormTot,
     filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
     
     SFH=SFHfunc,
     AGN = SKIRTOR,
@@ -467,9 +478,9 @@ do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
 }
 
 if(fittype == "photoZ_bc03_snorm_fritz_norm_eazy"){
-  do_fit = do_photoz_bc03_snorm_fritz_fit
+  do_fit = do_photoz_bc03_snorm_fritz_norm_eazy
 }else if (fittype == "photoZ_bc03_snorm_norm_eazy"){
-  do_fit = do_photoz_bc03_snorm_fit
+  do_fit = do_photoz_bc03_snorm_norm_eazy
 }else if (fittype == "photoZ_bc03_snorm_skirtor_norm_eazy"){
   do_fit = do_photoz_bc03_snorm_skirtor_norm_eazy
 }else{
@@ -567,6 +578,8 @@ if(slurm_paralel_job_array){
   }
 }
 
+print(fit_idx)
+
 registerDoParallel(cores = ncores)
 foreach(kk = fit_idx) %dopar% {
   
@@ -574,16 +587,12 @@ foreach(kk = fit_idx) %dopar% {
     save_dir, "/galID_",kk, ".rds" 
   )
   
+  print(save_stub)
+  
   if(file.exists(save_stub) & !overwrite){
     message("file exists")
   }else{
     fit = do_fit(kk)
-    
-    # fit$bestfit$Data$arglist$escape_frac = 1
-    # new = ProSpectSEDlike(
-    #   fit$bestfit$parm,
-    #   fit$bestfit$Data
-    # )
     
     summ = suppressMessages(
       ProSpectUtils::calc_astro(

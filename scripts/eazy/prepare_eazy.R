@@ -10,8 +10,8 @@ library(data.table)
 library(Rfits)
 
 main_dir = "~/Documents/Epochs/"
-fname = "smiles"
-appsize = "0.32"
+fname = "miri"
+appsize = "0.32" # use total fluxes
 min_pc_err = 0.1
 
 # load(
@@ -24,9 +24,70 @@ phot_cat = Rfits_read(
 filters_info = data.frame(fread(paste0(main_dir, "data/throughputs/wavelengths.txt")))
 
 flux_cat = data.frame(phot_cat$Phot32)
-df_flux = flux_cat[, paste0(filters_info$filters, "_flux_app_", appsize)]
-df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_flux_err_app_", appsize)]
+flux_cols     <- paste0(filters_info$filters, "_flux_app_", appsize)
+flux_err_cols <- paste0(filters_info$filters, "_scaled_flux_err_app_", appsize)
+
+# flux_cat = data.frame(phot_cat$PhotTot)
+# flux_cols     <- paste0(filters_info$filters, "_fluxt")
+# flux_err_cols <- paste0(filters_info$filters, "_scaled_fluxt_err")
+
+# flux_cat = data.frame(phot_cat$PhotCol)
+# flux_cat_uncorr = data.frame(phot_cat$RawCol)
+# flux_cols     <- paste0(filters_info$filters, "_fluxc")
+# flux_err_cols <- paste0(filters_info$filters, "_scaled_fluxc_err")
+
+# might as well match specz here 
+jades_prism_spec = data.frame(Rfits_read_table(
+  "~/Documents/Epochs/data/literature/specz-Catalogues/hlsp_jades_jwst_nirspec_goods-s_prism-line-fluxes_v1.1_catalog.fits"
+))
+smiles_prism_spec = data.frame(Rfits_read_table(
+  "~/Documents/Epochs/data/literature/specz-Catalogues/hlsp_smiles_jwst_nirspec_goodss_multi_v1.0_catalog.fits"
+))
+jades_combined_dr4 = Rfits_read_table(
+  "~/Documents/Epochs/data/literature/specz-Catalogues/jades_Combined_DR4_external_v1.2.1.fits"
+)
+zspec_df <- rbind(
+  setNames(
+    jades_prism_spec[jades_prism_spec$z_Spec_flag == "A",
+                     c("RA_NIRCam", "Dec_NIRCam", "z_Spec")],
+    c("RA", "DEC", "Zspec")
+  ),
+  setNames(
+    smiles_prism_spec[, c("RA", "DEC", "Z_SPEC")],
+    c("RA", "DEC", "Zspec")
+  ),
+  setNames(
+    jades_combined_dr4[jades_combined_dr4$z_Spec_flag == "A",
+                       c("RA_TARG", "Dec_TARG", "z_Spec")],
+    c("RA", "DEC", "Zspec")
+  )
+)
+
+jades_prism_spec_match = coordmatch(
+  coordref = zspec_df[, c("RA", "DEC")],
+  coordcompare = phot_cat$ProFound[, c("RAmax", "Decmax")],
+  rad = 0.3
+)
+zspec = rep(-999, dim(phot_cat$ProFound)[1])
+zspec[jades_prism_spec_match$bestmatch$compareID] = zspec_df$Zspec[jades_prism_spec_match$bestmatch$refID]
+
+safe_select <- function(df, cols) {
+  out <- data.frame(matrix(-999, nrow = nrow(df), ncol = length(cols)))
+  names(out) <- cols
+  existing <- cols[cols %in% names(df)]
+  out[, existing] <- df[, existing]
+  out
+}
+
+df_flux     = safe_select(flux_cat, flux_cols)
+df_flux_err = safe_select(flux_cat, flux_err_cols)
 df_flux_err = sqrt((df_flux_err)^2 + (min_pc_err * df_flux)^2) # put minimum error
+
+df_flux_uncorr     = safe_select(flux_cat, flux_cols)
+df_flux_err_uncorr = safe_select(flux_cat, flux_err_cols)
+df_flux_err_uncorr = sqrt((df_flux_err_uncorr)^2 + (min_pc_err * df_flux_uncorr)^2) # put minimum error
+# df_flux = flux_cat[, paste0(filters_info$filters, "_flux_app_", appsize)]
+# df_flux_err = flux_cat[, paste0(filters_info$filters, "_scaled_flux_err_app_", appsize)]
 
 # --- 1. Target flux column names -------------------------------------------
 flux_cols = names(df_flux)
@@ -165,7 +226,14 @@ fwrite(
 
 fwrite(
   cbind(
-    ID = phot_cat$ProFound$ID, RA = phot_cat$ProFound$RAmax, Dec = phot_cat$ProFound$Decmax, df_flux, df_flux_err
+    ID = phot_cat$ProFound$ID, RA = phot_cat$ProFound$RAmax, Dec = phot_cat$ProFound$Decmax, df_flux, df_flux_err, ZSPEC = zspec
   ), 
   paste0("~/Documents/Epochs/data/eazy/", fname, "_phot_eazy.csv")
+)
+
+fwrite(
+  cbind(
+    ID = phot_cat$ProFound$ID, RA = phot_cat$ProFound$RAmax, Dec = phot_cat$ProFound$Decmax, df_flux_uncorr, df_flux_err_uncorr, ZSPEC = zspec
+  ), 
+  paste0("~/Documents/Epochs/data/eazy/", fname, "_phot_eazy_uncorr.csv")
 )

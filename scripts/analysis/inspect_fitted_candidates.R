@@ -25,7 +25,7 @@ filter_transforms = readRDS(paste0("~/Documents/Epochs/data/throughputs/filt_fun
 df_flux = phot_cat32[, paste0(filters_info$filters, "_flux_app_0.32")]
 df_flux_err = phot_cat32[, paste0(filters_info$filters, "_scaled_flux_err_app_0.32")]
 
-idx = combined_cat$ID[combined_cat$selected == 1L & phot_cat$ProFound$flag == 0L]
+idx = combined_cat$ID[!is.na(combined_cat$zQ50)]
 
 for(kk in idx){
   png(
@@ -113,17 +113,17 @@ for(kk in idx){
   )
   
   sed_agn = readRDS(
-    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth/galID_", combined_cat$ID[kk], ".rds")
+    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", combined_cat$ID[kk], ".rds")
   )
   sed_stars = readRDS(
-    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_norm_eazy_no_tau_birth/galID_", combined_cat$ID[kk], ".rds")
+    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_norm_eazy/galID_", combined_cat$ID[kk], ".rds")
   )
   
   fit_agn = readRDS(
-    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_fritz_norm_eazy_no_tau_birth/galID_", combined_cat$ID[kk], ".rds")
+    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_fritz_norm_eazy/galID_", combined_cat$ID[kk], ".rds")
   )
   fit_stars = readRDS(
-    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_norm_eazy_no_tau_birth/galID_", combined_cat$ID[kk], ".rds")
+    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_norm_eazy/galID_", combined_cat$ID[kk], ".rds")
   )
   
   ff = unlist(df_flux[combined_cat$ID[kk], ])

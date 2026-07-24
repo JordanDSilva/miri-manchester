@@ -9,8 +9,6 @@ library(rhdf5)
 
 ## compute Hessian matrices about MLE solutions in EAZY
 eazy_dir = "~/Documents/Epochs/data/eazy/"
-fname = "smiles"
-fname_append = "_agn_blue_sfhz"
 
 compute_eazy_stuff = function(eazy_dir, fname, fname_append){
   eazy_zPDFs = data.frame(fread(
@@ -160,12 +158,13 @@ compute_eazy_stuff = function(eazy_dir, fname, fname_append){
   
   out = list(
     "zPDFs_normals" = zPDFs_normals,
-    "eazy_stats" = eazy_stats
+    "eazy_stats" = eazy_stats,
+    "eazy" = eazy
   )
   return(out)
 }
 
-hessian_Pz_plot = function(kk){
+hessian_Pz_plot = function(kk, eazy, eazy_stats, eazy_zPDFs){
   zgrid = eazy_zPDFs$zgrid
   zPDF = eazy_zPDFs[[paste0('gal',kk)]]
   
@@ -175,7 +174,7 @@ hessian_Pz_plot = function(kk){
   fit = dnorm(
     xx, 
     mean = eazy$z_ml[kk],
-    sd = zerrH[kk], 
+    sd = eazy_stats$zbestHessianSD[kk], 
     log = FALSE
   )
   magplot(
@@ -183,7 +182,8 @@ hessian_Pz_plot = function(kk){
     fit,
     type = "l",
     # log = "y",
-    xlim = c(0.01,c(range(zgrid[zPDF > 0]))[2]),
+    xlim = c(-1.5, 18.5),
+    # xlim = c(0.01,c(range(zgrid[zPDF > 0]))[2]),
     # xlim = c(range(zgrid[zPDF > 0])),
     ylim = c(pmax(1e-99, range(c(zPDF,fit)))),
     xlab = "Redshift",
@@ -204,37 +204,33 @@ hessian_Pz_plot = function(kk){
 
 agn_blue_sfhz_stats = compute_eazy_stuff(
   eazy_dir, 
-  "smiles",
-  "_agn_blue_sfhz"
+  "miri",
+  "_agn_blue_sfhz_col"
 )
 
-larson_stats = compute_eazy_stuff(
-  eazy_dir, 
-  "smiles",
-  "_larson"
+idx_zspec = which(
+  agn_blue_sfhz_stats$eazy$z_spec != -999
 )
 
-sfhz_carnall_stats = compute_eazy_stuff(
-  eazy_dir, 
-  "smiles",
-  "_sfhz_carnall"
-)
+for(i in 1:length(idx_zspec)){
+  png(
+    paste0("~/Documents/Epochs/plots/eazy_pz/pz_", idx_zspec[i], ".png"),
+    width = 7, 
+    height = 7,
+    units = "in",
+    res = 100
+  )
+  hessian_Pz_plot(
+    idx_zspec[i], 
+    eazy = agn_blue_sfhz_stats$eazy,
+    eazy_stats = agn_blue_sfhz_stats$eazy_stats,
+    eazy_zPDFs = agn_blue_sfhz_stats$zPDFs_normals
+  )
+  abline(
+    v = agn_blue_sfhz_stats$eazy$z_spec[idx_zspec[i]],
+    lwd = 2, col = "red"
+  )
+  dev.off()
+}
 
-# idx = zbest_integrals >= 0.6
-# maghist(
-#   eazy$z_ml[idx], log = "y", breaks = 100
-# )
-# magplot(
-#   eazy$z_ml[idx],
-#   eazy$z500[idx]
-# )
-# 
-# pdf("~/Desktop/eazy_smiles_galaxies_Pz.pdf", height = 6, width = 8)
-# hessian_Pz_plot(1)
-# hessian_Pz_plot(6)
-# hessian_Pz_plot(711)
-# hessian_Pz_plot(2001)
-# hessian_Pz_plot(3003)
-# dev.off()
-# 
-# hessian_Pz_plot(3048)
+
