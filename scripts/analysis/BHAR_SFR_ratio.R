@@ -44,10 +44,10 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
     # SFR10[quenched_idx] = quench_thresh[quenched_idx]
     # 
     if(is.null(out$bestfit$SEDout$AGN)){
-      BHAR_SFR = 0/SFR10
+      BHAR_SFR = rep(0,length(SFR10))
     }else{
       AGNlum = post[,"AGNlum"]
-      BHAR_SFR = (AGNlum * LAGN2BHAR) / SFR10
+      BHAR_SFR = SFR10 / (AGNlum * LAGN2BHAR)
     }
     
     df = data.frame(
@@ -69,7 +69,6 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
     df$BHARSFR10_lo = df$BHARSFR10Q50 - df$BHARSFR10Q16
     df$BHARSFR10_hi = df$BHARSFR10Q84 - df$BHARSFR10Q50
   }
-  df$ID = prospect_cat$ID[ii]
   return(df)
 })
 stopImplicitCluster()
@@ -81,9 +80,9 @@ df_combine$lowerlimVal = 0
 df_combine$lowerlim[quenched_idx] = TRUE
 df_combine$lowerlimVal[quenched_idx] = prospect_cat$AGNlumQ50[quenched_idx] * LAGN2BHAR / min_SFR10_values[quenched_idx]
 
-
+df_combine[is.na(df_combine)] <- -999
 fwrite(
-  df_combine, 
+  data.frame(df_combine), 
   "~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"
 )
 

@@ -121,6 +121,7 @@ df_combine = data.frame(foreach(ii = idx, .combine = rbind) %dopar% {
 })
 stopImplicitCluster()
 
+df_combine$CATID = 1:dim(df_combine)[1]
 fwrite(
   df_combine, 
   cat_stub

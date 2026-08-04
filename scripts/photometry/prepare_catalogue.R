@@ -482,15 +482,15 @@ h5createGroup(h5file, extname)
 for (nm in col_names) {
   df <- as.data.frame(and_in_the_darkness_bind_them[[nm]])
   path <- paste0(extname, "/", nm)
-  
+
   fid <- H5Fopen(h5file)
   exists <- H5Lexists(fid, path)
   H5Fclose(fid)
-  
+
   if (exists) {
     h5delete(h5file, path)
   }
-  
+
   h5write(df, file = h5file, name = path)
 }
 
