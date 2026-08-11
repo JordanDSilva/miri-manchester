@@ -51,6 +51,15 @@ dbl_pl = function(x, parm){
   return(y)
 }
 
+sing_pl = function(x, parm){
+  alpha = parm[1]
+  beta  = parm[2]
+  
+  y = alpha*(x - 7) + beta
+  
+  return(y)
+}
+
 PGF = function(Data){
   M0    = rnorm(1, 7, 0.5)
   alpha = rnorm(1, 1, 0.3)
@@ -176,13 +185,15 @@ for(i in 1:length(zmids)){
   xerr = (log10(prospect_sample$StellarMassQ84[zidx]) - log10(prospect_sample$StellarMassQ16[zidx])) * 0.5
   yerr = (log10(BHARSFR_df_sample$BHARSFR10Q84[zidx]) - log10(BHARSFR_df_sample$BHARSFR10Q16[zidx])) * 0.5
   
-  N = length(x_obs)
+  AGN_idx = prospect_sample$AGNlumQ50[zidx] > 1e0
+
+  N = length(which(AGN_idx))
   
   covarray = array(0, dim = c(2, 2, N))
   for (j in 1:N){
     read_stub = paste0(
       "~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/",
-      "/galID_", prospect_sample$CATID[zidx][j], ".rds"
+      "/galID_", prospect_sample$CATID[zidx][which(AGN_idx)[j]], ".rds"
     )
     read_data = readRDS(read_stub)
     post = read_data$post[, c("StellarMass", "SFR10", "AGNlum")]
@@ -214,8 +225,8 @@ for(i in 1:length(zmids)){
   # }
   
   Data = list(
-    x_obs = x_obs,
-    y_obs = y_obs,
+    x_obs = x_obs[AGN_idx],
+    y_obs = y_obs[AGN_idx],
     xerr  = xerr,
     yerr  = yerr,
     N     = N,
@@ -282,7 +293,7 @@ for(i in 1:length(zmids)){
   # --- Base plot ---
   pdf(
     paste0(
-      "~/Documents/Epochs/plots/fit_bhar_sfr/z", i, ".pdf"
+      "~/Documents/Epochs/plots/rough-plots/fit_bhar_sfr/z", i, ".pdf"
     ),
     width = 8,
     height = 6
@@ -294,6 +305,12 @@ for(i in 1:length(zmids)){
     ylim = c(-5, 5),
     xlab = "log10(Stellar Mass)",
     ylab = "log10(BHAR/SFR)"
+  )
+  points(
+    log10(prospect_sample$StellarMassQ50[zidx][AGN_idx]),
+    log10(BHARSFR_df_sample$BHARSFR10Q50[zidx][AGN_idx]),
+    pch = 16,
+    col = "magenta"
   )
   magerr(
     log10(prospect_sample$StellarMassQ50[zidx]),
@@ -347,6 +364,7 @@ for(i in 1:length(zmids)){
   )
 }
 
+df_fit = df_fit[!sapply(df_fit, is.null)]
 df_cat = data.frame(do.call(
   rbind, lapply(df_fit, function(x)x$df)
 ))
@@ -385,159 +403,3 @@ foo = h5read(
   h5file, "SFRBHAR/fits/1"
 )
 
-magplot(
-  zmids,
-  df_cat$MbreakQ50,
-  ylim = c(-0.5, 8),
-  xlim = c(0, 10),
-  ylab = "Mbreak"
-)
-magerr(
-  zmids,
-  df_cat$MbreakQ50,
-  ylo = df_cat$Mbreak_lo,
-  yhi = df_cat$Mbreak_hi
-)
-abline(h = 7)
-
-magplot(
-  zmids,
-  df_cat$M0Q50,
-  ylim = c(-0.5, 12),
-  xlim = c(0, 10),
-  ylab = "M0"
-)
-magerr(
-  zmids,
-  df_cat$M0Q50,
-  ylo = df_cat$M0_lo,
-  yhi = df_cat$M0_hi
-)
-
-magplot(
-  zmids,
-  df_cat$alphaQ50,
-  ylim = c(-2.5, 2.5),
-  xlim = c(0, 10),
-  ylab = "alpha"
-)
-magerr(
-  zmids,
-  df_cat$alphaQ50,
-  ylo = df_cat$alpha_lo,
-  yhi = df_cat$alpha_hi
-)
-
-magplot(
-  zmids,
-  df_cat$betaQ50,
-  ylim = c(-2.5, 2),
-  xlim = c(0, 10),
-  ylab = "beta"
-)
-magerr(
-  zmids,
-  df_cat$betaQ50,
-  ylo = df_cat$beta_lo,
-  yhi = df_cat$beta_hi
-)
-
-
-
-
-# --- Parameter vector layout ---
-# parm[1:4]   = M0, alpha, beta, S0        (model parameters)
-# parm[5:(4+N)] = x_true_i                  (latent true x for each point)
-
-# PGF = function(Data){
-#   # Parameter Generating Function - initial values for MCMC
-#   M0    = rnorm(1, 7, 0.5)
-#   alpha = rnorm(1, 1, 0.3)
-#   beta  = rnorm(1, 1, 0.3)
-#   S0    = rnorm(1, 1, 0.3)
-#   xtrue = rnorm(Data$N, Data$x_obs, Data$xerr)
-#   return(c(M0, alpha, beta, S0, xtrue))
-# }
-# 
-# Model = function(parm, Data){
-#   
-#   M0    = parm[1]
-#   alpha = parm[2]
-#   beta  = parm[3]
-#   S0    = parm[4]
-#   xtrue = parm[5:(4 + Data$N)]
-#   
-#   # --- Priors on model parameters (adjust ranges as appropriate) ---
-#   M0.prior    = dnorm(M0,    7, 2,   log = TRUE)
-#   alpha.prior = dnorm(alpha, 1, 1,   log = TRUE)
-#   beta.prior  = dnorm(beta,  1, 1,   log = TRUE)
-#   S0.prior    = dnorm(S0,    1, 2,   log = TRUE)
-#   
-#   # --- Prior on alpha/beta
-#   beta.prior = 
-#   
-#   # --- Prior on latent x_true: encodes that we expect it near the observed x ---
-#   # (this is effectively the "measurement model" linking x_true to x_obs via xerr)
-#   xtrue.prior = sum(dnorm(xtrue, Data$x_obs, Data$xerr, log = TRUE))
-#   
-#   LP.prior = M0.prior + alpha.prior + beta.prior + S0.prior + xtrue.prior
-#   
-#   # --- Likelihood: y_obs given model evaluated at x_true ---
-#   mu = dbl_pl(xtrue, c(M0, alpha, beta, S0))
-#   LL = sum(dnorm(Data$y_obs, mean = mu, sd = Data$yerr, log = TRUE))
-#   
-#   LP = LL + LP.prior
-#   
-#   Modelout = list(
-#     LP = LP,
-#     Dev = -2 * LL,
-#     Monitor = c(LP, M0, alpha, beta, S0),
-#     yhat = mu,
-#     parm = parm
-#   )
-#   return(Modelout)
-# }
-
-# --- Parameter vector layout now: M0, alpha, delta, S0, xtrue... ---
-# where delta > 0 and beta = alpha - delta
-
-
-
-# Model = function(parm, Data){
-#   
-#   M0    = parm[1]
-#   alpha = parm[2]
-#   delta = parm[3]
-#   S0    = parm[4]
-#   xtrue = parm[5:(4 + Data$N)]
-#   
-#   beta = alpha - delta
-#   
-#   # --- Priors ---
-#   M0.prior    = dnorm(M0,    7, 2, log = TRUE)
-#   alpha.prior = dnorm(alpha, 1, 2, log = TRUE)
-#   delta.prior = dgamma(delta, shape = 2, rate = 2, log = TRUE)  # keeps delta > 0
-#   S0.prior    = dnorm(S0,    1, 2, log = TRUE)
-#   
-#   xtrue.prior = sum(dnorm(xtrue, Data$x_obs, Data$xerr, log = TRUE))
-#   
-#   LP.prior = M0.prior + alpha.prior + delta.prior + S0.prior + xtrue.prior
-#   
-#   mu = dbl_pl(xtrue, c(M0, alpha, beta, S0))
-#   LL = sum(dnorm(Data$y_obs, mean = mu, sd = Data$yerr, log = TRUE))
-#   
-#   LP = LL + LP.prior
-#   
-#   # if(is.infinite(LP)){
-#   #   LP = -99999
-#   # }
-#   # 
-#   Modelout = list(
-#     LP = LP,
-#     Dev = -2 * LL,
-#     Monitor = c(LP, M0, alpha, beta, delta, S0),
-#     yhat = mu,
-#     parm = parm
-#   )
-#   return(Modelout)
-# }

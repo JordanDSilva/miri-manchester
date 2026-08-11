@@ -4,6 +4,7 @@ library(rhdf5)
 library(magicaxis)
 library(celestial)
 library(dplyr)
+library(bit64)
 
 filter_info = data.frame(fread("~/Documents/Epochs/data/throughputs/wavelengths.txt"))
 phot_cat = Rfits_read("~/Documents/Epochs/data/catalogues/miri_profound_multiband_cat.fits", data.table = TRUE)
@@ -22,47 +23,67 @@ juodzbalis26 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogu
 juodzbalis26_sed = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/juodzbalis26_sed_fits_raw.csv"))
 juodzbalis26_combine = cbind(juodzbalis26, juodzbalis26_sed)
 
+
+jades_dr4 = Rfits_read_table("~/Documents/Epochs/data/literature/specz-Catalogues/jades_Combined_DR4_external_v1.2.1.fits")
+jades_deephst = jades_dr4[jades_dr4$PID == 1210 | jades_dr4$PID == 3215, ]
+scholtz25 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/scholtz25_agn.csv"))
+head(jades_deephst$NIRSpec_ID)
+head(scholtz25$ID)
+
+scholtz25 = scholtz25 |>
+  mutate(NIRSpec_ID = as.integer64(sub(".*?(\\d+)$", "\\1", ID)))
+
+scholtz25_merged = jades_deephst |>
+  inner_join(scholtz25, by = "NIRSpec_ID")
+
 literature_AGN = data.frame(
-  "RA" = c(stemo20$RA, barrows21$RA, juodzbalis26_combine$RA),
-  "DEC" = c(stemo20$DEC, barrows21$DEC, juodzbalis26_combine$Dec),
-  "z" = c(stemo20$Z, barrows21$zbest, juodzbalis26_combine$z),
+  "RA" = c(stemo20$RA, barrows21$RA, juodzbalis26_combine$RA, scholtz25_merged$RA_TARG),
+  "DEC" = c(stemo20$DEC, barrows21$DEC, juodzbalis26_combine$Dec, scholtz25_merged$Dec_TARG),
+  "z" = c(stemo20$Z, barrows21$zbest, juodzbalis26_combine$z, scholtz25_merged$z),
   
   "Lagn" = c(
     log10(stemo20$L_bol_x_md), 
     log10(barrows21$Lbolagn), 
-    juodzbalis26_combine$log_Lbol
+    juodzbalis26_combine$log_Lbol,
+    scholtz25_merged$log10_Lbol
     ),
   "Lagn_lo" = c(
     log10(stemo20$L_bol_x_md)-log10(stemo20$L_bol_x_lo), 
     log10(barrows21$Lbolagn)-log10(barrows21$e_Lbolagn),
-    juodzbalis26_combine$log_Lbol_lo
+    juodzbalis26_combine$log_Lbol_lo,
+    rep(0.25, nrow(scholtz25_merged))
     ),
   "Lagn_hi" = c(
     log10(stemo20$L_bol_x_hi)-log10(stemo20$L_bol_x_md), 
     log10(barrows21$E_Lbolagn)-log10(barrows21$Lbolagn),
-    juodzbalis26_combine$log_Lbol_hi
+    juodzbalis26_combine$log_Lbol_hi,
+    rep(0.25, nrow(scholtz25_merged))
     ),
   
   "Mstar" = c(
     log10(stemo20$M_star_md), 
     log10(barrows21$Mstar),
-    juodzbalis26_combine$log_Mstar_FPHO
+    juodzbalis26_combine$log_Mstar_FPHO,
+    scholtz25_merged$log10_Mstar
     ),
   "Mstar_lo" = c(
     log10(stemo20$L_bol_x_md)-log10(stemo20$L_bol_x_lo), 
     log10(barrows21$Mstar)-log10(barrows21$e_Mstar),
-    juodzbalis26_combine$log_Mstar_FPHO_lo
+    juodzbalis26_combine$log_Mstar_FPHO_lo,
+    scholtz25_merged$log10_Mstar_lo
     ),
   "Mstar_hi" = c(
     log10(stemo20$L_bol_x_hi)-log10(stemo20$L_bol_x_md), 
     log10(barrows21$E_Mstar)-log10(barrows21$Mstar),
-    juodzbalis26_combine$log_Mstar_FPHO_hi
+    juodzbalis26_combine$log_Mstar_FPHO_hi,
+    scholtz25_merged$log10_Mstar_hi
     ),
   
   "survey" = c(
     rep("Stemo20", nrow(stemo20)), 
     rep("Barrows21", nrow(barrows21)), 
-    rep("Juodzbalis26", nrow(juodzbalis26_combine))
+    rep("Juodzbalis26", nrow(juodzbalis26_combine)),
+    rep("Scholtz26", nrow(scholtz25_merged))
     )
 )
 
@@ -151,6 +172,7 @@ magplot(
   df$StellarAGN_AGNlumQ50,
   log = "xy"
 )
+abline(0,1)
 
 # match_juodzbalis26 = coordmatch(
 #   coordref = bind_rows(

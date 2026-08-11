@@ -21,44 +21,6 @@ eddTime = ((1.26e38 * 1e-7) / (Msun * speedOfLight^2))^-1 / (60 * 60 * 24 * 365.
 
 prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
-#Reines and Volonetri+15
-x  <- seq(1, 15.5, 0.01)
-dx <- x - 11
-
-line_ll <- (7.45 - 0.08) + (1.05 - 0.11) * dx
-line_lh <- (7.45 - 0.08) + (1.05 + 0.11) * dx
-line_hl <- (7.45 + 0.08) + (1.05 - 0.11) * dx
-line_hh <- (7.45 + 0.08) + (1.05 + 0.11) * dx
-
-upper <- pmax(line_ll, line_lh, line_hl, line_hh)
-lower <- pmin(line_ll, line_lh, line_hl, line_hh)
-fwrite(
-  data.frame("mstar" = x, "smbh_lo" = lower, "smbh_hi" = upper),
-  file = "~/Documents/Epochs/data/literature/AGN-Catalogues/reinesvolonteri15.csv"
-)
-
-x  <- seq(1, 15.5, 0.01)
-dx <- log10(10^x/(3e10))
-
-line_ll <- (7.56 - 0.09) + (1.39 - 0.13) * dx
-line_lh <- (7.56 - 0.09) + (1.39 + 0.13) * dx
-line_hl <- (7.56 + 0.09) + (1.39 - 0.13) * dx
-line_hh <- (7.56 + 0.09) + (1.39 + 0.13) * dx
-
-upper <- pmax(line_ll, line_lh, line_hl, line_hh)
-lower <- pmin(line_ll, line_lh, line_hl, line_hh)
-fwrite(
-  data.frame("mstar" = x, "smbh_lo" = lower, "smbh_hi" = upper),
-  file = "~/Documents/Epochs/data/literature/AGN-Catalogues/greene20.csv"
-)
-
-ding20 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/ding20_smbh.csv"))
-maiolino24 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/maiolino24_smbh.csv"))
-juodzbalis26 = cbind(
-  data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/juodzbalis26_agn_data_raw.csv")),
-  data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/juodzbalis26_sed_fits_raw.csv"))
-)
-
 uni_age_fast = approxfun(
   x = seq(0, 100, 0.01),
   y = cosdistUniAgeAtz(z = seq(0, 100, 0.01), ref = "737"),
@@ -93,7 +55,7 @@ do_fit = function(M0, epsilon = 0.1, t0 = 0){
       
       Lagn_post = read_gal$post[,c("AGNlum")]
       
-      arg_eps = (epsilon / (1e9*uni_age * (1 - epsilon)))
+      arg_eps = (epsilon / (1e9*(uni_age - t0) * (1 - epsilon)))
       arg1 = (eddTime * 1.26e38 * M0)^-1 * Lagn_post * arg_eps^-1 
       lambda = eddTime * arg_eps * lambertW0(arg1)
       
@@ -177,34 +139,42 @@ names(SMBH_df_m04) = paste0("m04_",c(
   "SMBHQ50","SMBHQ16","SMBHQ84","SMBH_lo","SMBH_hi"
 ))
 
+SMBH_results = do_fit(M0 = 1e5, epsilon = epsilon, t0 = t0)
+SMBH_df_m05 = data.frame(do.call(rbind, lapply(SMBH_results, function(x)x$df)))
+names(SMBH_df_m05) = paste0("m05_",c(
+  "LEddQ50","LEddQ16","LEddQ84","LEdd_lo","LEdd_hi",
+  "SMBHQ50","SMBHQ16","SMBHQ84","SMBH_lo","SMBH_hi"
+))
+
 SMBH_df = dplyr::bind_cols(
   SMBH_df_m02,
   SMBH_df_m03,
-  SMBH_df_m04
+  SMBH_df_m04,
+  SMBH_df_m05
 )
 
 fwrite(
   SMBH_df,
-  "~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.csv"
+  "~/Documents/Epochs/data/smbh/prospect_robust_SMBH_results_fixed.csv"
 )
 
 # read in data, and also data from BHAR/SFR ratio
 
-SMBH_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.csv"))
-BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"))
-
-SMBH_combine = cbind(
-  SMBH_df,
-  BHARSFR_df
-)
-SMBH_combine[is.na(SMBH_combine)] <- -999
-SMBH_combine$lowerlim = as.integer(SMBH_combine$lowerlim)
-
-h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
-# Create the file if it doesn't exist yet; otherwise we append into it
-if (!file.exists(h5file)) {
-  h5createFile(h5file)
-}
-h5delete(h5file, "SMBH/SMBH")
-h5createGroup(h5file, "SMBH")
-h5write(SMBH_combine, file = h5file, name = paste0("SMBH/SMBH"))
+# SMBH_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.csv"))
+# BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"))
+# 
+# SMBH_combine = cbind(
+#   SMBH_df,
+#   BHARSFR_df
+# )
+# SMBH_combine[is.na(SMBH_combine)] <- -999
+# SMBH_combine$lowerlim = as.integer(SMBH_combine$lowerlim)
+# 
+# h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+# # Create the file if it doesn't exist yet; otherwise we append into it
+# if (!file.exists(h5file)) {
+#   h5createFile(h5file)
+# }
+# h5delete(h5file, "SMBH/SMBH")
+# h5createGroup(h5file, "SMBH")
+# h5write(SMBH_combine, file = h5file, name = paste0("SMBH/SMBH"))

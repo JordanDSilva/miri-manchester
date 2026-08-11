@@ -35,6 +35,10 @@ combined_catalogue$FitType = ifelse(replace_AGN_idx, "Stellar", "StellarAGN") # 
 robust_catalogue = combined_catalogue
 robust_catalogue[which(phot_cat$ProFound$flag == 1 | combined_catalogue$StellarMassQ50 > 10^(12) | combined_catalogue$UV1500Q50 < -22), c(common_names, uncommon_names, "DeltaDIC", "FitType")] = NA
 
+# compare how many we set as NAs from large Mstar/MUV
+combined_catalogue_z = combined_catalogue[combined_catalogue$zQ50 >= 1.07467287 & combined_catalogue$zQ50 < 9.98276084, ]
+robust_catalogue_z = robust_catalogue[robust_catalogue$zQ50 >= 1.07467287 & robust_catalogue$zQ50 < 9.98276084, ]
+
 
 ## Isolate a DIC selected sample
 combined_DIC_catalogue = photoZ_bc03_snorm_fritz_norm_eazy # start with Stellar+AGN

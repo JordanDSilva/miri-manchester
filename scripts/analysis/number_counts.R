@@ -24,6 +24,7 @@ filters_info = data.frame(fread(paste0(main_dir, "data/throughputs/wavelengths.t
 df_flux_name = "PhotTot"
 flux_col_names = paste0(filters_info$filters, "_fluxt")
 
+
 .calc_number_counts = function(mag, area, mag_bins, mag_bw, limiting_mag = 100){
   mag[is.na(mag) | mag == 0 | is.infinite(mag)] = 100
   
@@ -151,4 +152,21 @@ stone25 = df3 <- data.frame(
 fwrite(
   stone25,
   "~/Documents/Epochs/data/literature/number_counts/stone25.csv"
+)
+
+phot = Rfits_read(paste0(main_dir, "/data/catalogues/", "miri", "_profound_multiband_cat.fits"))
+df_flux = safe_select(phot[[df_flux_name]][phot$ProFound$flag == 0, ], flux_col_names)
+per_band_sources = vector(length = 31)
+for(i in 1:31){
+  per_band_sources[i] = sum(df_flux[,i] != -999)
+}
+magplot(
+  filters_info$cenwave,
+  per_band_sources/nrow(df_flux),
+  log = "xy"
+)
+text(
+  filters_info$cenwave,
+  per_band_sources/nrow(df_flux),
+  labels = filters_info$filters
 )

@@ -7,6 +7,8 @@ library(doParallel)
 
 LAGN2BHAR = ( 3.154e7 * 1e-7 * (0.1 * 3e8^2)**-1 / 2e30)
 
+LAGN_thresh = 1e44
+
 uni_age_fast = approxfun(
   x = seq(0, 100, 0.01),
   y = cosdistUniAgeAtz(z = seq(0, 100, 0.01), ref = "737"),
@@ -86,9 +88,9 @@ fwrite(
   "~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"
 )
 
-# magplot(
-#   prospect_cat$StellarMassQ50[],
-#   df_combine$BHARSFR10Q50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))],
-#   log = "xy",
-#   z = prospect_cat$zQ50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))]
-# )
+magplot(
+  prospect_cat$StellarMassQ50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))],
+  df_combine$BHARSFR10Q50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))],
+  log = "xy",
+  z = prospect_cat$zQ50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))]
+)
