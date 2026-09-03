@@ -16,12 +16,14 @@ library(matrixStats)
 library(LaplacesDemon)
 library(mvtnorm)  # for dmvnorm
 
+set.seed(666)
+
 prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
-SMBH_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.csv"))
-BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"))
+BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"))
 
-LAGN2BHAR = ( 3.154e7 * 1e-7 * (0.1 * 3e8^2)**-1 / 2e30)
+LAGN2BHAR = function(epsilon){( 3.154e7 * 1e-7 * (epsilon * 3e8^2)**-1 / 2e30)}
+epsilon_samples = runif(n = 100000, min = 0.06, max = 0.4)
 
 lbt_bins = seq(8.0, 13.0, 0.5)
 zbins = approx(
@@ -198,8 +200,10 @@ for(i in 1:length(zmids)){
     read_data = readRDS(read_stub)
     post = read_data$post[, c("StellarMass", "SFR10", "AGNlum")]
     
+    Npost = nrow(post)
+    
     x = as.numeric(log10(post[, "StellarMass"]))
-    y = as.numeric(log10(post[, "SFR10"] / (LAGN2BHAR * post[, "AGNlum"])))
+    y = as.numeric(log10(post[, "SFR10"] / ( LAGN2BHAR(epsilon_samples[sample(1:Npost)]) * post[, "AGNlum"])))
     
     ok = is.finite(x) & is.finite(y)
     

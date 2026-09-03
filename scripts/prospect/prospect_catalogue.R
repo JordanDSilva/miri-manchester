@@ -7,7 +7,7 @@ set.seed(666)
 ncores = 8 ## will set to 1 for SLURM job array 
 ncoresPost = 1 ## how many cores for posterior sampling
 do_spec = FALSE
-do_lrd = TRUE
+do_lrd = FALSE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {

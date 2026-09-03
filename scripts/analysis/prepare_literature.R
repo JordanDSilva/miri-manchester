@@ -134,3 +134,34 @@ fwrite(
   data.frame("mstar" = x, "smbh_lo" = lower, "smbh_hi" = upper),
   file = "~/Documents/Epochs/data/literature/AGN-Catalogues/greene20.csv"
 )
+
+akins25_z6_stack = df <- data.frame(
+  Band = c("Chandra 2-10 keV", "Chandra 0.5-2 keV", "HST/ACS F606W", "HST/ACS F814W",
+           "JWST/NIRCam F090W", "JWST/NIRCam F115W", "JWST/NIRCam F150W", "JWST/NIRCam F200W",
+           "JWST/NIRCam F277W", "JWST/NIRCam F356W", "JWST/NIRCam F410M", "JWST/NIRCam F444W",
+           "JWST/MIRI F770W", "JWST/MIRI F1800W", "Spitzer/MIPS", "Spitzer/MIPS",
+           "Herschel/PACS", "Herschel/PACS", "Herschel/SPIRE", "Herschel/SPIRE", "Herschel/SPIRE",
+           "SCUBA-2", "ALMA", "ALMA", "VLA 3 GHz", "MeerKAT 1.28 GHz"),
+  Wavelength_um = c(0.28e-3, 1.24e-3, 0.60, 0.81, 0.90, 1.16, 1.50, 2.00, 2.77, 3.58, 4.08, 4.42, 7.66, 18.00, 24, 70, 100, 160, 250, 350, 500, 850, 1200, 2000, 1e8, 2.3e8),
+  N = c(434, 434, 29, 434, 29, 434, 434, 29, 434, 29, 29, 434,
+        148, 24, 434, 434, 434, 434, 434, 434, 434, 434, 30, 128, 434, 434),
+  Units = c("erg/s/cm2", "erg/s/cm2", "nJy", "nJy", "nJy", "nJy", "nJy", "nJy",
+            "nJy", "nJy", "nJy", "nJy", "nJy", "nJy", "uJy", "mJy",
+            "mJy", "mJy", "mJy", "mJy", "mJy", "uJy", "uJy", "uJy", "uJy", "uJy"),
+  F_nu = c(7.2e-17, 1.1e-17, 3.85 * 1e-9, 4.11* 1e-9, 7.37* 1e-9, 15.76* 1e-9, 16.46* 1e-9, 17.66* 1e-9,
+           30.51* 1e-9, 83.30* 1e-9, 113.56* 1e-9, 173.00* 1e-9, 277.99* 1e-9, 435.2* 1e-9, 3.43* 1e-6, 0.36* 1e-3,
+           0.40* 1e-3, 0.82* 1e-3, 0.65* 1e-3, 0.86* 1e-3, 1.24* 1e-3, 239* 1e-6, 157* 1e-6, 35.4* 1e-6, 0.56* 1e-6, 1.80* 1e-6),
+  F_nu_err = c(NA, NA, NA, 0.52, 1.22, 0.62, 0.51, 0.77,
+               0.23, 0.56, 1.03, 0.33, 2.94, 150.9, NA, NA,
+               NA, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+  upper_limit = c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE,
+                  FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, TRUE,
+                  TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
+)
+fwrite(
+  akins25_z6_stack,
+  file = "~/Documents/Epochs/data/literature/akins25_stack.csv"
+)
+
+casey24_SF = read.table("~/Documents/ProSpectStuff/LRD_fits/lrd_predicted_sed_sf.txt")
+casey24_AGN = read.table("~/Documents/ProSpectStuff/LRD_fits/lrd_predicted_sed_agn.txt")

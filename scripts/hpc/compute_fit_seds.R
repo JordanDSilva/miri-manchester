@@ -3,11 +3,13 @@ library(matrixStats)
 library(foreach)
 library(doParallel)
 library(data.table)
+library(magicaxis)
 
 ncores = 1 
-max_slurm_jobs = 84 # should be the maximum of your job array
-slurm_paralel_job_array = FALSE
-do_lrd = FALSE
+max_slurm_jobs = 32 # should be the maximum of your job array
+slurm_paralel_job_array = TRUE
+do_lrd = TRUE
+overwrite = TRUE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
@@ -22,7 +24,7 @@ if (length(args[1]) == 0 | is.na(args[1])) {
 }
 
 if (length(args[2]) == 0 | is.na(args[2])) {
-  main_dir = "~/Documents/Epochs/"
+  main_dir = "~/mnt/csf3/"
 } else {
   main_dir <- args[2]
 }
@@ -114,7 +116,7 @@ if(slurm_paralel_job_array){
     fit_idx = index_parallel_job_array(
       INDEX = idx, 
       ncores = ncores, 
-      N = dim(df_flux)[1], 
+      N = dim(phot_cat$ProFound)[1], 
       start_Nindex = 1,
       end_index = max_slurm_jobs
     )
@@ -305,8 +307,7 @@ for(i in fit_idx){
     save_dir, "galID_", i, ".rds"
   )
   
-  if(file.exists(file_stub) & !file.exists(save_stub)){
-
+  if (file.exists(file_stub) & (!file.exists(save_stub) | overwrite)) {
     out = readRDS(file_stub)
     
     post = out$post
@@ -315,12 +316,8 @@ for(i in fit_idx){
     Data$speclib = BC03hr
     
     if(!is.null(out$bestfit$SEDout$AGN)){
-      if(do_lrd){
-        if(grepl("MBB", fittype)){
-          Data$AGN = LRDBBSKIRTOR
-        }else{
-          stop("Unknown fittype")
-        }
+      if(grepl("MBB", fittype)){
+        Data$AGN = LRDBBSKIRTOR
       }else{
         Data$AGN = Fritz
       }
@@ -544,7 +541,7 @@ for(i in fit_idx){
     obs_xlo = min(Data$flux$cenwave) - 100
     obs_xhi = max(Data$flux$cenwave) + 1000
     obs_ylo = min(pmax(1e-10, Data$flux$flux - 3*Data$flux$fluxerr, na.rm = TRUE)) * 0.5
-    obs_yup = max(Data$flux$flux + 3*Data$flux$fluxerr, na.rm = TRUE) * 1.5
+    obs_yup = max(Data$flux$flux + 3*Data$flux$fluxerr, na.rm = TRUE) * 2.5
     
     plot_spectrum_ribbon(
       spectrum = spectrum, key = "flux", xvar = "obswave", xlim = c(obs_xlo, obs_xhi), ylim = c(obs_ylo, obs_yup), xlab = "Wavelength [micron]", ylab = "Flux [Jy]"

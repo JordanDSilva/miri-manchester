@@ -5,7 +5,10 @@ library(matrixStats)
 library(magicaxis)
 library(doParallel)
 
-LAGN2BHAR = ( 3.154e7 * 1e-7 * (0.1 * 3e8^2)**-1 / 2e30)
+set.seed(666)
+
+LAGN2BHAR = function(epsilon){( 3.154e7 * 1e-7 * (epsilon * 3e8^2)**-1 / 2e30)}
+epsilon_samples = runif(n = 100000, min = 0.06, max = 0.4)
 
 LAGN_thresh = 1e44
 
@@ -40,6 +43,8 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
     StellarMass = post[, "StellarMass"]
     SFR10 = post[, "SFR10"]
     
+    Npost = length(SFR10)
+    
     # quench_thresh = 0.2 * (1e9 * uniage) * StellarMass
     
     # quenched_idx = SFR10 <= quench_thresh
@@ -49,7 +54,9 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
       BHAR_SFR = rep(0,length(SFR10))
     }else{
       AGNlum = post[,"AGNlum"]
-      BHAR_SFR = SFR10 / (AGNlum * LAGN2BHAR)
+      BHAR_SFR = SFR10 / (AGNlum * LAGN2BHAR(epsilon_samples[sample(1:Npost)]))
+      # BHAR_SFR = SFR10 / (AGNlum * LAGN2BHAR(0.1))
+      
     }
     
     df = data.frame(
@@ -75,12 +82,12 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
 })
 stopImplicitCluster()
 
-min_SFR10_values = prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))
-quenched_idx = which(prospect_cat$SFR10Q50 < min_SFR10_values)
+# min_SFR10_values = prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))
+# quenched_idx = which(prospect_cat$SFR10Q50 < min_SFR10_values)
 df_combine$lowerlim = FALSE
-df_combine$lowerlimVal = 0
+# df_combine$lowerlimVal = 0
 df_combine$lowerlim[quenched_idx] = TRUE
-df_combine$lowerlimVal[quenched_idx] = prospect_cat$AGNlumQ50[quenched_idx] * LAGN2BHAR / min_SFR10_values[quenched_idx]
+# df_combine$lowerlimVal[quenched_idx] = prospect_cat$AGNlumQ50[quenched_idx] * LAGN2BHAR / min_SFR10_values[quenched_idx]
 
 df_combine[is.na(df_combine)] <- -999
 fwrite(
@@ -88,9 +95,3 @@ fwrite(
   "~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"
 )
 
-magplot(
-  prospect_cat$StellarMassQ50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))],
-  df_combine$BHARSFR10Q50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))],
-  log = "xy",
-  z = prospect_cat$zQ50[prospect_cat$SFR10Q50 >= prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))]
-)
