@@ -10,6 +10,7 @@ library(doParallel)
 library(magicaxis)
 library(data.table)
 library(Rfits)
+library(dplyr)
 # library(ProSpectUtils)
 devtools::load_all("~/Documents/ProSpectStuff/ProSpectUtils/")
 
@@ -17,8 +18,8 @@ set.seed(666)
 
 # main_dir = "/scratch/"
 
-CMANiters = 2000
-LDNiters = 2000
+CMANiters = 4000
+LDNiters = 4000
 
 min_pc_err = 0.1
 
@@ -29,6 +30,7 @@ load(
   paste0(main_dir, "/data/prospect_data_for_fitting.rda")
 )
 
+# set up spec/phot data
 # load in data
 cliff_photometry <- data.frame(
   filter = c("NIRCam/F090W", "NIRCam/F115W", "NIRCam/F150W", "NIRCam/F200W",
@@ -70,6 +72,87 @@ mom_Data = list(
 )
 mom_Data$name = "MoMBH1"
 
+# load in Rosetta Stone data from Juodzbalis+24
+candels_phot = data.frame(Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature_lrds/spec/hlsp_candels_hst_wfc3_goodsn-barro19_multi_v1-1_photometry-cat.fits"))
+candels_mir = data.frame(Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature_lrds/spec/hlsp_candels_hst_wfc3_goodsn-barro19_multi_v1_sfr-gdn-cat.fits"))
+
+rosetta_astrometry <- data.frame(
+  id          = 1206169,
+  ra          = 189.06458,
+  dec         = 62.273827,
+  x           = 33425.977,
+  y           = 20013.012,
+  a           = 3.519602,
+  b           = 3.3444624,
+  theta       = 66.45676,
+  kron_radius = 1.4
+)
+
+# Photometry: filter, flux [microJy], flux_err [microJy]
+rosetta_jades_photometry = data.frame(
+  filter = c("F435W","F606W","F775W","F814W","F850LP",
+             "F105W","F125W","F140W","F160W",
+             "F070W","F090W","F115W","F150W","F162M","F182M",
+             "F200W","F210M","F277W","F300M","F335M","F356W",
+             "F410M","F430M","F444W","F460M","F770W","F1280W"),
+  flux = c(307.48, 408.49, 396.65, 418.63, 463.39,
+           442.63, 706.46, NA, 2075.21,
+           NA, 459.95, 628.12, 2162.78, NA, 2236.39,
+           4565.62, 7759.25, 5172.19, NA, 6302.41, 6460.90,
+           7870.04, NA, 7251.43, NA, NA, NA) * 1e-3,
+  flux_err = c(8.43, 7.66, 12.39, 6.42, 13.40,
+               10.00, 13.18, NA, 18.84,
+               NA, 7.67, 5.88, 8.46, NA, 25.15,
+               6.72, 29.51, 5.46, NA, 10.63, 5.21,
+               8.88, NA, 6.47, NA, NA, NA) * 1e-3,
+  stringsAsFactors = FALSE
+)
+
+# match spitzer photmoetry
+rosetta_match_idx = coordmatch(
+  coordref = rosetta_astrometry[1, c("ra", "dec")],
+  coordcompare = candels_phot[, c("RA", "DEC")],
+  rad = 0.2
+)
+spitzer_flux = data.frame(c( candels_phot[rosetta_match_idx$bestmatch$compareID, c("IRAC_CH1_SCANDELS_FLUX", "IRAC_CH2_SCANDELS_FLUX", "IRAC_CH3_FLUX", "IRAC_CH4_FLUX")], "Flux_MIPS24" = candels_mir[rosetta_match_idx$bestmatch$compareID, c("Flux_MIPS24")] ))
+spitzer_flux_err = data.frame(c( candels_phot[rosetta_match_idx$bestmatch$compareID, c("IRAC_CH1_SCANDELS_FLUXERR", "IRAC_CH2_SCANDELS_FLUXERR", "IRAC_CH3_FLUXERR", "IRAC_CH4_FLUXERR")], "Flux_Err_MIPS24" = candels_mir[rosetta_match_idx$bestmatch$compareID, "Flux_Err_MIPS24"] ))
+spitzer_cenwave = cenwave$cenwave[which(cenwave$filter %in% c("I1_Spitzer", "I2_Spitzer", "I3_Spitzer", "I4_Spitzer", "M24_Spitzer"))]
+rosetta_spitzer_photometry = data.frame(
+  filter = c("I1_Spitzer", "I2_Spitzer", "I3_Spitzer", "I4_Spitzer", "M24_Spitzer"),
+  flux = unname(unlist(spitzer_flux)),
+  flux_err = unname(unlist(spitzer_flux_err)),
+  stringsAsFactors = FALSE
+)
+
+rosetta_photometry = data.frame(rbind(
+  rosetta_jades_photometry,
+  rosetta_spitzer_photometry
+))
+
+rosetta_photometry$cenwave = c(filters_info$cenwave[match(rosetta_jades_photometry$filter, filters_info$filters)], spitzer_cenwave)
+rosetta_photometry$filter_names = c(filters_info$filter_names[match(rosetta_jades_photometry$filter, filters_info$filters)], c("I1_Spitzer", "I2_Spitzer", "I3_Spitzer", "I4_Spitzer", "M24_Spitzer"))
+rosetta_photometry = rosetta_photometry[order(rosetta_photometry$cenwave), ]
+rosetta_photometry = rosetta_photometry[!is.na(rosetta_photometry$cenwave), ]
+
+spitzer_transforms = list(
+  "I1_Spitzer" = approxfun(getfilt("I1_Spitzer"), yleft = 0, yright = 0),
+  "I2_Spitzer" = approxfun(getfilt("I2_Spitzer"), yleft = 0, yright = 0),
+  "I3_Spitzer" = approxfun(getfilt("I3_Spitzer"), yleft = 0, yright = 0),
+  "I4_Spitzer" = approxfun(getfilt("I4_Spitzer"), yleft = 0, yright = 0),
+  "M24_Spitzer" = approxfun(getfilt("M24_Spitzer"), yleft = 0, yright = 0)
+)
+
+# load in data
+rosetta_Data = list(
+  "fluxJy" = rosetta_photometry$flux*1e-6,
+  "fluxerrJy" = rosetta_photometry$flux_err*1e-6,
+  "cenwave" = rosetta_photometry$cenwave,
+  "z" = 2.26, 
+  "LumDist_Mpc" = cosdistLumDist(z = 2.26, ref = "737"),
+  "filters" = c(filter_transforms,spitzer_transforms)[rosetta_photometry$filter_names]
+)
+rosetta_Data$name = "Rosetta"
+
 # make fine tooth photo filters ?
 Nfilt = 100
 obs_filters_cenwave = seq(0.5, 5.4, length.out = Nfilt) * 1e4
@@ -88,8 +171,6 @@ make_filter = function(i){
 }
 obs_filters_comb = lapply(1:Nfilt, make_filter)
 names(obs_filters_comb) = paste0("F_", seq(1:Nfilt))
-
-photom_Data = cliff_Data
 
 get_photom_from_spec = function(spec, photom_Data, obs_filters_comb){
   
@@ -152,6 +233,7 @@ get_photom_from_spec = function(spec, photom_Data, obs_filters_comb){
     "filters" = c(obs_filters_comb, photom_Data$filters[photom_Data$cenwave >= 5.5*1e4])
   )
   spec_Data$name = photom_Data$name
+  spec_Data$flux_scale = flux_scale
   
   return(spec_Data)
 }
@@ -164,6 +246,11 @@ cliff_spec_Data = get_photom_from_spec(
 mom_spec_Data = get_photom_from_spec(
   spec = Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature_lrds/spec/mom-uds01-v4_prism-clear_5224_150135.spec.fits"),
   photom_Data = mom_Data,
+  obs_filters_comb = obs_filters_comb
+)
+rosetta_spec_Data = get_photom_from_spec(
+  spec = Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature_lrds/spec/jades-gdn2-v4_prism-clear_1181_28074.spec.fits"),
+  photom_Data = rosetta_Data,
   obs_filters_comb = obs_filters_comb
 )
 
@@ -262,6 +349,128 @@ do_photoz_bc03_snorm_fritz = function(galData){
         -2.5, -5, 0, 0, 
         -4, 
         40, 0.001, -1
+      ), 
+      hi = c(
+        4, magemax, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  
+  start = Sys.time()
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  print(Sys.time() - start)
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( "galName" = galData$name, "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+do_photoz_bc03_snorm_fritz_low_CF = function(galData){
+  
+  save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_fritz_lowCF_fit.rds")
+  print(save_stub)
+  
+  flux_data = data.frame(
+    "filter" = names(galData$filters),
+    "cenwave" = galData$cenwave,
+    "flux" = as.numeric(galData$fluxJy)
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(galData$fluxerrJy)^2 + (min_pc_err * flux_data$flux)^2 )
+  
+  filtout = galData$filters
+  
+  Redshift = galData$z
+  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
+  magemax = agemax/1e9
+  Zagemax = agemax/1e9
+  LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      z = Redshift,
+      agemax = agemax,
+      magemax = magemax, 
+      Zagemax = Zagemax,
+      LumDist_Mpc = LumDist_Mpc,
+      
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = FALSE,
+      IGMabsorb = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7 
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    
+    parm.names = c('mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        44, 0.001, -1
       ), 
       hi = c(
         4, magemax, 2, 1, 
@@ -670,6 +879,7 @@ loop_through_fit = function(galData){
     do_photoz_bc03_snorm_LRDMBB,
     do_photoz_bc03_snorm_LRDLIU,
     do_photoz_bc03_snorm_sirocco
+    # do_photoz_bc03_snorm_fritz_low_CF
   )){
     fit = do_fit(galData)
     
@@ -701,7 +911,7 @@ loop_through_fit = function(galData){
 
 loop_through_fit(cliff_spec_Data)
 loop_through_fit(mom_spec_Data)
-
+loop_through_fit(rosetta_spec_Data)
 
 plot_spectrum_ribbon <- function(spectrum,
                                  key,
@@ -869,6 +1079,7 @@ plot_sfh_zh <- function(spectrum,
   invisible(list(x = x, q16 = q16, q50 = q50, q84 = q84))
 }
 
+# file_stub = paste0(main_dir, "/data/literature_lrds/Cliff_lrdmbb_fit.rds"); AGN_model = LRDBBSKIRTOR; fittype = "lrdmbb"
 compute_fit_sed = function(file_stub, AGN_model, fittype){
   out = readRDS(file_stub)
   
@@ -1051,13 +1262,37 @@ compute_fit_sed = function(file_stub, AGN_model, fittype){
   spectrum$fluxQ05         = colQuantiles(as.matrix(obs_samples), probs = 0.05, na.rm = TRUE)
   spectrum$fluxQ95         = colQuantiles(as.matrix(obs_samples), probs = 0.95, na.rm = TRUE)
   
-  # observed frame flux
-  spectrum$obswave         = out$bestfit$SEDout$FinalFlux$wave
-  spectrum$fluxQ50         = colMedians(as.matrix(obs_samples), na.rm = TRUE)
-  spectrum$fluxQ16         = colQuantiles(as.matrix(obs_samples), probs = 0.16, na.rm = TRUE)
-  spectrum$fluxQ84         = colQuantiles(as.matrix(obs_samples), probs = 0.84, na.rm = TRUE)
-  spectrum$fluxQ05         = colQuantiles(as.matrix(obs_samples), probs = 0.05, na.rm = TRUE)
-  spectrum$fluxQ95         = colQuantiles(as.matrix(obs_samples), probs = 0.95, na.rm = TRUE)
+  # observed frame AGN flux
+  spectrum$obsAGNwave         = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$wave
+  spectrum$fluxAGNQ50         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  spectrum$fluxAGNQ16         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ16, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  spectrum$fluxAGNQ84         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ84, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  spectrum$fluxAGNQ05         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ05, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  spectrum$fluxAGNQ95         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ95, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  
+  
+  flux_flux_wave = Lum2Flux(wave = out$bestfit$SEDout$FinalLum$wave, lum = spectrum$lumQ50, z = Data$arglist$z, ref = "737")$wave
+  flux_flux         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$FinalLum$wave, lum = spectrum$lumQ50, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$FinalLum$wave))
+  
+  magplot(
+    spectrum$obswave,
+    spectrum$fluxQ50,
+    log = "xy",
+    type = "l",
+    xlim = c(1e3, 1e6),
+    ylim = c(1e-10, 1e-4)
+  )
+  lines(
+    spectrum$obsAGNwave,
+    spectrum$fluxAGNQ50,
+    col = "purple"
+  )
+  lines(
+    flux_flux_wave,
+    flux_flux * (1+Data$arglist$z)^2, 
+    col = "blue"
+  )
+  
   
   # observed frame flux
   spectrum$ageQ50         = colMedians(as.matrix(agevec_samples), na.rm = TRUE)
@@ -1183,12 +1418,46 @@ compute_fit_sed = function(file_stub, AGN_model, fittype){
   )
 }
 
-compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Cliff_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Cliff_fritz_fit.rds"), Fritz, "fritz")
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Cliff_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Cliff_lrdliu_fit.rds"), LRDLIU, "lrdliu")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Cliff_sirocco_fit.rds"), SIROCCO, "sirocco")
 
-compute_fit_sed(paste0(main_dir, "/data/literature_lrds/MoMBH1_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/MoMBH1_fritz_fit.rds"), Fritz, "fritz")
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/MoMBH1_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/MoMBH1_lrdliu_fit.rds"), LRDLIU, "lrdliu")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/MoMBH1_sirocco_fit.rds"), SIROCCO, "sirocco")
+
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_fritz_fit.rds"), Fritz, "fritz")
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_lrdliu_fit.rds"), LRDLIU, "lrdliu")
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_sirocco_fit.rds"), SIROCCO, "sirocco")
+
+foo = readRDS(paste0(main_dir, "/data/literature_lrds/Cliff_fritz_fit.rds"))
+bar = readRDS(paste0(main_dir, "/data/literature_lrds/MoMBH1_fritz_fit.rds"))
+rosetta = readRDS(paste0(main_dir, "/data/literature_lrds/Rosetta_fritz_fit.rds"))
+
+lit_fritz = bind_rows(
+  foo$astro,
+  bar$astro,
+  rosetta$astro
+)
+
+foo = readRDS(paste0(main_dir, "/data/literature_lrds/Cliff_lrdmbb_fit.rds"))
+bar = readRDS(paste0(main_dir, "/data/literature_lrds/MoMBH1_lrdmbb_fit.rds"))
+rosetta = readRDS(paste0(main_dir, "/data/literature_lrds/Rosetta_lrdmbb_fit.rds"))
+
+lit_lrdmbb = bind_rows(
+  foo$astro,
+  bar$astro,
+  rosetta$astro
+)
+
+fwrite(
+  lit_fritz,
+  paste0(main_dir, "/data/literature_lrds/lit_lrds_fritz_astro.csv")
+)
+fwrite(
+  lit_lrdmbb,
+  paste0(main_dir, "/data/literature_lrds/lit_lrds_lrdmbb_astro.csv")
+)

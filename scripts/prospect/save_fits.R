@@ -59,11 +59,22 @@ save_fits = function(save_stub, fits_stub){
     overwrite_file = FALSE
   )
   
-  df = data.frame(foo[c("ageQ50", "ageQ16", "ageQ84", "ageQ05", "ageQ95","SFHQ50", "SFHQ16", "SFHQ84", "SFHQ05", "SFHQ95","ZHQ50", "ZHQ16", "ZHQ84", "ZHQ05", "ZHQ95")])
+  df = data.frame(foo[c("obsAGNwave", "fluxAGNQ50", "fluxAGNQ16", "fluxAGNQ84", "fluxAGNQ05", "fluxAGNQ95")])
   Rfits_write_table(
     df,
     filename = fits_stub,
     ext = 6,
+    extname = "AGNobs",
+    create_file = FALSE,
+    create_ext = TRUE,
+    overwrite_file = FALSE
+  )
+  
+  df = data.frame(foo[c("ageQ50", "ageQ16", "ageQ84", "ageQ05", "ageQ95","SFHQ50", "SFHQ16", "SFHQ84", "SFHQ05", "SFHQ95","ZHQ50", "ZHQ16", "ZHQ84", "ZHQ05", "ZHQ95")])
+  Rfits_write_table(
+    df,
+    filename = fits_stub,
+    ext = 7,
     extname = "evol",
     create_file = FALSE,
     create_ext = TRUE,
@@ -72,10 +83,52 @@ save_fits = function(save_stub, fits_stub){
 }
 
 save_fits(
-  save_stub = "~/Documents/Epochs/data/literature_lrds/Cliff_lrdmbb_sed.rds",
-  fits_stub = "~/Documents/Epochs/data/literature_lrds/Cliff_lrdmbb_sed.fits"
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_fritz_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_fritz_sed.fits"
 )
 save_fits(
-  save_stub = "~/Documents/Epochs/data/literature_lrds/Cliff_fritz_sed.rds",
-  fits_stub = "~/Documents/Epochs/data/literature_lrds/Cliff_fritz_sed.fits"
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_lrdmbb_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_lrdmbb_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_lrdliu_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_lrdliu_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_sirocco_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Cliff_sirocco_sed.fits"
+)
+
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_fritz_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_fritz_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_lrdmbb_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_lrdmbb_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_lrdliu_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_lrdliu_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_sirocco_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/MoMBH1_sirocco_sed.fits"
+)
+
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_fritz_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_fritz_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_lrdmbb_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_lrdmbb_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_lrdliu_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_lrdliu_sed.fits"
+)
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_sirocco_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_sirocco_sed.fits"
 )
