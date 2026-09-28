@@ -7,37 +7,37 @@ library(dplyr)
 
 load_eazy = function(fname, fname_append){
   # h5ls(
-  #   "~/Documents/Epochs/data/eazy/smiles/smiles_zphot.out.h5"
+  #   "~/Documents/JWST-MIRI-AGN/data/eazy/smiles/smiles_zphot.out.h5"
   # )
   eazy_zPDFs = data.frame(fread(
-    paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
   ))
   eazy_ntemplates = h5read(
-    paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.h5"),
+    paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.h5"),
     'fit/coeffs_best'
   )
   eazy_ntemplates = colSums(
     eazy_ntemplates > 0
   )
   eazy = Rfits_read_table(
-    paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.zout.fits")
+    paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.zout.fits")
   )
   eazy$ntemplates = eazy_ntemplates
   
-  if(!file.exists(paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv"))){
+  if(!file.exists(paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv"))){
     eazy_stats = NULL
   }else{
     eazy_stats = data.frame(fread(
-      paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
+      paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
     ))
     eazy_stats$z_ml = eazy$z_ml
   }
   
-  if(!file.exists(paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv"))){
+  if(!file.exists(paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv"))){
     eazy_zPDFs_normals = NULL
   }else{
     eazy_zPDFs_normals = data.frame(fread(
-      paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv")
+      paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv")
     ))
   }
   return(list(eazy = eazy, eazy_stats = eazy_stats, eazy_zPDFs = eazy_zPDFs, eazy_zPDFs_normals = eazy_zPDFs_normals))
@@ -59,11 +59,11 @@ compute_peak_integrals = function(kk, eazy_zPDFs, eazy){
 
 agn_blue_sfhz = load_eazy("miri", "_agn_blue_sfhz_col")
 
-filter_info = data.frame(fread("~/Documents/Epochs/data/throughputs/wavelengths.txt"))
-phot_cat = Rfits_read("~/Documents/Epochs/data/catalogues/miri_profound_multiband_cat.fits", data.table = TRUE)
+filter_info = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/throughputs/wavelengths.txt"))
+phot_cat = Rfits_read("~/Documents/JWST-MIRI-AGN/data/catalogues/miri_profound_multiband_cat.fits", data.table = TRUE)
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
-# prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+# prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
 
 df = data.frame(
   "zspec" = agn_blue_sfhz$eazy$z_spec,
@@ -78,13 +78,13 @@ df = data.frame(
   "eazyPz80" = agn_blue_sfhz$eazy_stats$zbestPzIntegral
 )
 
-df[
-  which(df$zspec < 4 & df$zeazy > 4 & df$zspec != -999),
-]
+# df[
+#   which(df$zspec < 4 & df$zeazy > 4 & df$zspec != -999),
+# ]
+# 
+# prospect_cat[which(df$zspec < 4 & df$zeazy > 6 & df$zspec != -999), c("UV1500Q50", "StellarMassQ50", "FitType")]
 
-prospect_cat[which(df$zspec < 4 & df$zeazy > 6 & df$zspec != -999), c("UV1500Q50", "StellarMassQ50", "FitType")]
-
-h5file = "~/Documents/Epochs/data/analysis_data.h5"
+h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
 h5createFile(h5file)
 h5createGroup(
   file = h5file,
@@ -114,11 +114,11 @@ h5write(
   name = "photoz/zgrid"
 )
 
-idx = which(df$zeazy > 5 & df$zspec < 4 & df$zspec != -999)
-
-df$zQ50[idx]
-df$zeazy[idx]
-
-phot_cat$ProFound$flag[idx]
-
-magplot(agn_blue_sfhz$eazy$dec, prospect_cat$Dec)
+# idx = which(df$zeazy > 5 & df$zspec < 4 & df$zspec != -999)
+# 
+# df$zQ50[idx]
+# df$zeazy[idx]
+# 
+# phot_cat$ProFound$flag[idx]
+# 
+# magplot(agn_blue_sfhz$eazy$dec, prospect_cat$Dec)

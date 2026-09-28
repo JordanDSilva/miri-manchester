@@ -18,9 +18,9 @@ library(mvtnorm)  # for dmvnorm
 
 set.seed(666)
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
-BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"))
+BHARSFR_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"))
 
 LAGN2BHAR = function(epsilon){( 3.154e7 * 1e-7 * (epsilon * 3e8^2)**-1 / 2e30)}
 epsilon_samples = runif(n = 100000, min = 0.06, max = 0.4)
@@ -194,7 +194,7 @@ for(i in 1:length(zmids)){
   covarray = array(0, dim = c(2, 2, N))
   for (j in 1:N){
     read_stub = paste0(
-      "~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/",
+      "~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/",
       "/galID_", prospect_sample$CATID[zidx][which(AGN_idx)[j]], ".rds"
     )
     read_data = readRDS(read_stub)
@@ -297,7 +297,7 @@ for(i in 1:length(zmids)){
   # --- Base plot ---
   pdf(
     paste0(
-      "~/Documents/Epochs/plots/rough-plots/fit_bhar_sfr/z", i, ".pdf"
+      "~/Documents/JWST-MIRI-AGN/plots/rough-plots/fit_bhar_sfr/z", i, ".pdf"
     ),
     width = 8,
     height = 6
@@ -374,24 +374,28 @@ df_cat = data.frame(do.call(
 ))
 saveRDS(
   df_fit,
-  "~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.rds"
+  "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds"
 )
 
 fwrite(
   df_cat, 
-  "~/Documents/Epochs/data/prospect/BHAR_SFR_dpl_fit_results.csv"
+  "~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"
 )
 
-df_fit = readRDS("~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.rds")
-df_cat = data.frame(fread("~/Documents/Epochs/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
+df_fit = readRDS("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds")
+df_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
 
-h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
 # Create the file if it doesn't exist yet; otherwise we append into it
 if (!file.exists(h5file)) {
   h5createFile(h5file)
 }
 
-h5delete(h5file, "SFRBHAR")
+h5ls(h5file)
+if (any(h5ls(h5file)$name == "SFRBHAR")) {
+  h5delete(h5file, "SFRBHAR")
+}
+# h5delete(h5file, "SFRBHAR")
 h5createGroup(h5file, "SFRBHAR")
 h5write(df_cat, file = h5file, name = paste0("SFRBHAR/Params"))
 h5createGroup(h5file, "SFRBHAR/fits")
@@ -402,8 +406,3 @@ for(i in 1:length(df_fit)){
     name = paste0("SFRBHAR/fits/", i)
   )
 }
-
-foo = h5read(
-  h5file, "SFRBHAR/fits/1"
-)
-

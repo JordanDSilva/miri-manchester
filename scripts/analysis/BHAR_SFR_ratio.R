@@ -18,18 +18,18 @@ uni_age_fast = approxfun(
   rule = 2
 )
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
 registerDoParallel(cores = 8)
 df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .errorhandling = "stop") %dopar% {
   message("Running galID: ", ii)
   if(prospect_cat$FitType[ii] == "Stellar"){
     read_stub = paste0(
-      "~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_norm_eazy/", "/galID_",ii, ".rds"
+      "~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_norm_eazy/", "/galID_",ii, ".rds"
     )
   }else{
     read_stub = paste0(
-      "~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/", "/galID_",ii, ".rds"
+      "~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/", "/galID_",ii, ".rds"
     )
   }
   
@@ -82,8 +82,8 @@ df_combine = data.frame(foreach(ii = 1:dim(prospect_cat)[1], .combine = rbind, .
 })
 stopImplicitCluster()
 
-# min_SFR10_values = prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))
-# quenched_idx = which(prospect_cat$SFR10Q50 < min_SFR10_values)
+min_SFR10_values = prospect_cat$StellarMassQ50 * 0.2/(1e9*uni_age_fast(prospect_cat$zQ50))
+quenched_idx = which(prospect_cat$SFR10Q50 < min_SFR10_values)
 df_combine$lowerlim = FALSE
 # df_combine$lowerlimVal = 0
 df_combine$lowerlim[quenched_idx] = TRUE
@@ -92,6 +92,6 @@ df_combine$lowerlim[quenched_idx] = TRUE
 df_combine[is.na(df_combine)] <- -999
 fwrite(
   data.frame(df_combine), 
-  "~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"
+  "~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"
 )
 

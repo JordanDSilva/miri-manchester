@@ -18,8 +18,8 @@ set.seed(666)
 
 # main_dir = "/scratch/"
 
-CMANiters = 4000
-LDNiters = 4000
+CMANiters = 2000
+LDNiters = 2000
 
 min_pc_err = 0.1
 
@@ -185,7 +185,7 @@ get_photom_from_spec = function(spec, photom_Data, obs_filters_comb){
     filters = photom_Data$filters,
     outtype = "Jy"
   )
-  F444W_idx = which(names(cliff_Data$filters) == "JWST_NIRCAM_F444W")
+  F444W_idx = which(names(photom_Data$filters) == "JWST_NIRCAM_F444W")
   
   flux_scale = photom_Data$fluxJy[F444W_idx]/spec_phot[F444W_idx]
   
@@ -273,6 +273,120 @@ constraintfunc = function(parm, Data){
   return(parm)
 }
 
+do_photoz_bc03_snorm = function(galData){
+  
+  save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_noAGN_fit.rds")
+  print(save_stub)
+  
+  flux_data = data.frame(
+    "filter" = names(galData$filters),
+    "cenwave" = galData$cenwave,
+    "flux" = as.numeric(galData$fluxJy)
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(galData$fluxerrJy)^2 + (min_pc_err * flux_data$flux)^2 )
+  
+  filtout = galData$filters
+  
+  Redshift = galData$z
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
+  magemax = agemax/1e9
+  Zagemax = agemax/1e9
+  LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      z = Redshift,
+      agemax = agemax,
+      magemax = magemax, 
+      Zagemax = Zagemax,
+      LumDist_Mpc = LumDist_Mpc,
+      
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = FALSE,
+      IGMabsorb = "Inoue14",
+      
+      mtrunc = 2,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7 
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
+    
+    SFH=SFHfunc,
+    AGN = NULL,
+    Dale_M2L_func = Dale_M2L_func,
+    
+    parm.names = c('mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4
+      ), 
+      hi = c(
+        4, magemax, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  
+  start = Sys.time()
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  print(Sys.time() - start)
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( "galName" = galData$name, "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
 do_photoz_bc03_snorm_fritz = function(galData){
   
   save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_fritz_fit.rds")
@@ -290,7 +404,7 @@ do_photoz_bc03_snorm_fritz = function(galData){
   filtout = galData$filters
   
   Redshift = galData$z
-  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
   magemax = agemax/1e9
   Zagemax = agemax/1e9
   LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
@@ -395,128 +509,6 @@ do_photoz_bc03_snorm_fritz = function(galData){
   )
   return(out)
 }
-do_photoz_bc03_snorm_fritz_low_CF = function(galData){
-  
-  save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_fritz_lowCF_fit.rds")
-  print(save_stub)
-  
-  flux_data = data.frame(
-    "filter" = names(galData$filters),
-    "cenwave" = galData$cenwave,
-    "flux" = as.numeric(galData$fluxJy)
-    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
-  )
-  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
-  flux_data$fluxerr = sqrt( as.numeric(galData$fluxerrJy)^2 + (min_pc_err * flux_data$flux)^2 )
-  
-  filtout = galData$filters
-  
-  Redshift = galData$z
-  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
-  magemax = agemax/1e9
-  Zagemax = agemax/1e9
-  LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
-  
-  Data = list(
-    flux = flux_data,
-    mode = "photom",
-    arglist = list(
-      z = Redshift,
-      agemax = agemax,
-      magemax = magemax, 
-      Zagemax = Zagemax,
-      LumDist_Mpc = LumDist_Mpc,
-      
-      massfunc = massfunc_snorm_trunc,
-      Z = Zfunc_massmap_lin,
-      
-      emission = TRUE,
-      photoz = FALSE,
-      IGMabsorb = "Inoue14",
-      
-      mtrunc = 2,
-      
-      AGNrm = 60,
-      AGNbe = -0.5,
-      AGNal = 4.0,
-      AGNct = 100,
-      
-      ref='737',
-      H0 = 70,
-      OmegaM = 0.3,
-      OmegaL = 0.7 
-    ),
-    
-    speclib = BC03hr,
-    Dale = Dale_NormTot,
-    filtout = filtout,
-    Inoue14_LAFcoef = Inoue14_LAFcoef,
-    Inoue14_DLAcoef = Inoue14_DLAcoef,
-    
-    SFH=SFHfunc,
-    AGN = Fritz,
-    Dale_M2L_func = Dale_M2L_func,
-    
-    parm.names = c('mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
-    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
-    logged = c(
-      TRUE, FALSE, TRUE, FALSE,
-      TRUE, TRUE, FALSE, FALSE,
-      TRUE,
-      TRUE, FALSE, TRUE
-    ),
-    intervals = list(
-      lo = c(
-        -3, -2, log10(0.3), -0.5,
-        -2.5, -5, 0, 0, 
-        -4, 
-        44, 0.001, -1
-      ), 
-      hi = c(
-        4, magemax, 2, 1, 
-        1.5, 1, 4, 4, 
-        -1.3, 
-        49, 89.990, 1
-      )
-    ), 
-    fit = 'LD',
-    N = dim(flux_data)[1],
-    prior = pfunc_no_tau_birth,
-    constraints = NULL,
-    verbose = FALSE
-  )
-  
-  Data$constraints = function(parm){constraintfunc(parm, Data)}
-  
-  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
-  names(startpoint) = Data$parm.names
-  startpoint["AGNlum"] = 44
-  
-  start = Sys.time()
-  highout = Highlander(
-    startpoint, 
-    Data, 
-    ProSpectSEDlike,
-    Niters = c(CMANiters, LDNiters), 
-    NfinalMCMC = LDNiters,
-    optim_iters = 2, 
-    seed = 666,
-    lower=Data$intervals$lo, 
-    upper=Data$intervals$hi
-  )
-  print(Sys.time() - start)
-  
-  Data$fit = 'check'
-  bestfit = ProSpectSEDlike(highout$par, Data=Data)
-  
-  out = list(
-    save_stub = save_stub,
-    "bestfit" = bestfit,
-    "highout" = highout,
-    "galInfo" = cbind( "galName" = galData$name, "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
-  )
-  return(out)
-}
 do_photoz_bc03_snorm_LRDMBB = function(galData){
   save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_lrdmbb_fit.rds")
   print(save_stub)
@@ -533,7 +525,7 @@ do_photoz_bc03_snorm_LRDMBB = function(galData){
   filtout = galData$filters
   
   Redshift = galData$z
-  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
   magemax = agemax/1e9
   Zagemax = agemax/1e9
   LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
@@ -651,7 +643,7 @@ do_photoz_bc03_snorm_LRDLIU = function(galData){
   filtout = galData$filters
   
   Redshift = galData$z
-  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
   magemax = agemax/1e9
   Zagemax = agemax/1e9
   LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
@@ -769,7 +761,7 @@ do_photoz_bc03_snorm_sirocco = function(galData){
   filtout = galData$filters
   
   Redshift = galData$z
-  agemax = cosdistUniAgeAtz(z = Redshift, ref = "737") * 1e9
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
   magemax = agemax/1e9
   Zagemax = agemax/1e9
   LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
@@ -873,8 +865,256 @@ do_photoz_bc03_snorm_sirocco = function(galData){
   return(out)
 }
 
+do_photoz_bc03_snorm_fritz_forced_dusty = function(galData){
+  
+  save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_fritz_dusty_fit.rds")
+  print(save_stub)
+  
+  flux_data = data.frame(
+    "filter" = names(galData$filters),
+    "cenwave" = galData$cenwave,
+    "flux" = as.numeric(galData$fluxJy)
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(galData$fluxerrJy)^2 + (min_pc_err * flux_data$flux)^2 )
+  
+  filtout = galData$filters
+  
+  Redshift = galData$z
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
+  magemax = agemax/1e9
+  Zagemax = agemax/1e9
+  LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      z = Redshift,
+      agemax = agemax,
+      magemax = magemax, 
+      Zagemax = Zagemax,
+      LumDist_Mpc = LumDist_Mpc,
+      
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = FALSE,
+      IGMabsorb = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      AGNan = 0.001,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7 
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    
+    parm.names = c('mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        44, -1
+      ), 
+      hi = c(
+        4, magemax, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  
+  start = Sys.time()
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  print(Sys.time() - start)
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( "galName" = galData$name, "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+do_photoz_bc03_snorm_fritz_low_CF = function(galData){
+  
+  save_stub = paste0(main_dir, "/data/literature_lrds/", galData$name, "_fritz_lowCF_fit.rds")
+  print(save_stub)
+  
+  flux_data = data.frame(
+    "filter" = names(galData$filters),
+    "cenwave" = galData$cenwave,
+    "flux" = as.numeric(galData$fluxJy)
+    # "fluxerr" = unname(unlist(df_flux_err[kk, ]))
+  )
+  flux_data$flux[flux_data$flux == 0 | flux_data$flux == -999] = NA
+  flux_data$fluxerr = sqrt( as.numeric(galData$fluxerrJy)^2 + (min_pc_err * flux_data$flux)^2 )
+  
+  filtout = galData$filters
+  
+  Redshift = galData$z
+  agemax = (cosdistUniAgeAtz(z = Redshift, ref = "737") - cosdistUniAgeAtz(z = 30, ref = "737")) * 1e9
+  magemax = agemax/1e9
+  Zagemax = agemax/1e9
+  LumDist_Mpc = cosdistLumDist(z = Redshift, ref = "737")
+  
+  Data = list(
+    flux = flux_data,
+    mode = "photom",
+    arglist = list(
+      z = Redshift,
+      agemax = agemax,
+      magemax = magemax, 
+      Zagemax = Zagemax,
+      LumDist_Mpc = LumDist_Mpc,
+      
+      massfunc = massfunc_snorm_trunc,
+      Z = Zfunc_massmap_lin,
+      
+      emission = TRUE,
+      photoz = FALSE,
+      IGMabsorb = "Inoue14",
+      
+      mtrunc = 2,
+      
+      AGNrm = 60,
+      AGNbe = -0.5,
+      AGNal = 4.0,
+      AGNct = 100,
+      
+      ref='737',
+      H0 = 70,
+      OmegaM = 0.3,
+      OmegaL = 0.7 
+    ),
+    
+    speclib = BC03hr,
+    Dale = Dale_NormTot,
+    filtout = filtout,
+    Inoue14_LAFcoef = Inoue14_LAFcoef,
+    Inoue14_DLAcoef = Inoue14_DLAcoef,
+    
+    SFH=SFHfunc,
+    AGN = Fritz,
+    Dale_M2L_func = Dale_M2L_func,
+    
+    parm.names = c('mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal','AGNlum', 'AGNan', 'AGNta'), 
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst"),
+    logged = c(
+      TRUE, FALSE, TRUE, FALSE,
+      TRUE, TRUE, FALSE, FALSE,
+      TRUE,
+      TRUE, FALSE, TRUE
+    ),
+    intervals = list(
+      lo = c(
+        -3, -2, log10(0.3), -0.5,
+        -2.5, -5, 0, 0, 
+        -4, 
+        44, 0.001, -1
+      ), 
+      hi = c(
+        4, magemax, 2, 1, 
+        1.5, 1, 4, 4, 
+        -1.3, 
+        49, 89.990, 1
+      )
+    ), 
+    fit = 'LD',
+    N = dim(flux_data)[1],
+    prior = pfunc_no_tau_birth,
+    constraints = NULL,
+    verbose = FALSE
+  )
+  
+  Data$constraints = function(parm){constraintfunc(parm, Data)}
+  
+  startpoint = (Data$intervals$lo+Data$intervals$hi)/2
+  names(startpoint) = Data$parm.names
+  startpoint["AGNlum"] = 44
+  
+  start = Sys.time()
+  highout = Highlander(
+    startpoint, 
+    Data, 
+    ProSpectSEDlike,
+    Niters = c(CMANiters, LDNiters), 
+    NfinalMCMC = LDNiters,
+    optim_iters = 2, 
+    seed = 666,
+    lower=Data$intervals$lo, 
+    upper=Data$intervals$hi
+  )
+  print(Sys.time() - start)
+  
+  Data$fit = 'check'
+  bestfit = ProSpectSEDlike(highout$par, Data=Data)
+  
+  out = list(
+    save_stub = save_stub,
+    "bestfit" = bestfit,
+    "highout" = highout,
+    "galInfo" = cbind( "galName" = galData$name, "LP" = highout$LP, "DIC" = highout$LD_last$DIC1[3])
+  )
+  return(out)
+}
+
 loop_through_fit = function(galData){
   for(do_fit in list(
+    # do_photoz_bc03_snorm_fritz_forced_dusty
+    do_photoz_bc03_snorm,
     do_photoz_bc03_snorm_fritz,
     do_photoz_bc03_snorm_LRDMBB,
     do_photoz_bc03_snorm_LRDLIU,
@@ -909,8 +1149,8 @@ loop_through_fit = function(galData){
   }
 }
 
-loop_through_fit(cliff_spec_Data)
-loop_through_fit(mom_spec_Data)
+# loop_through_fit(cliff_spec_Data)
+# loop_through_fit(mom_spec_Data)
 loop_through_fit(rosetta_spec_Data)
 
 plot_spectrum_ribbon <- function(spectrum,
@@ -1262,38 +1502,27 @@ compute_fit_sed = function(file_stub, AGN_model, fittype){
   spectrum$fluxQ05         = colQuantiles(as.matrix(obs_samples), probs = 0.05, na.rm = TRUE)
   spectrum$fluxQ95         = colQuantiles(as.matrix(obs_samples), probs = 0.95, na.rm = TRUE)
   
-  # observed frame AGN flux
-  spectrum$obsAGNwave         = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$wave
-  spectrum$fluxAGNQ50         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
-  spectrum$fluxAGNQ16         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ16, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
-  spectrum$fluxAGNQ84         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ84, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
-  spectrum$fluxAGNQ05         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ05, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
-  spectrum$fluxAGNQ95         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ95, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  if(!is.null(out$bestfit$SEDout$AGN)){
+    # observed frame AGN flux
+    spectrum$obsAGNwave         = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$wave
+    spectrum$fluxAGNQ50         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ50, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+    spectrum$fluxAGNQ16         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ16, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+    spectrum$fluxAGNQ84         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ84, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+    spectrum$fluxAGNQ05         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ05, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+    spectrum$fluxAGNQ95         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$AGN$wave, lum = spectrum$AGNQ95, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$AGN$wave))
+  }else{
+    spectrum$obsAGNwave = 1:10
+    spectrum$fluxAGNQ50 = rep(1e-99, 10)
+    spectrum$fluxAGNQ16 = rep(1e-99, 10)
+    spectrum$fluxAGNQ84 = rep(1e-99, 10)
+    spectrum$fluxAGNQ05 = rep(1e-99, 10)
+    spectrum$fluxAGNQ95 = rep(1e-99, 10)
+    }
   
   
   flux_flux_wave = Lum2Flux(wave = out$bestfit$SEDout$FinalLum$wave, lum = spectrum$lumQ50, z = Data$arglist$z, ref = "737")$wave
   flux_flux         = CGS2Jansky(convert_wave2freq(flux_wave = Lum2Flux(wave = out$bestfit$SEDout$FinalLum$wave, lum = spectrum$lumQ50, z = Data$arglist$z, ref = "737")$flux, wave = out$bestfit$SEDout$FinalLum$wave))
-  
-  magplot(
-    spectrum$obswave,
-    spectrum$fluxQ50,
-    log = "xy",
-    type = "l",
-    xlim = c(1e3, 1e6),
-    ylim = c(1e-10, 1e-4)
-  )
-  lines(
-    spectrum$obsAGNwave,
-    spectrum$fluxAGNQ50,
-    col = "purple"
-  )
-  lines(
-    flux_flux_wave,
-    flux_flux * (1+Data$arglist$z)^2, 
-    col = "blue"
-  )
-  
-  
+
   # observed frame flux
   spectrum$ageQ50         = colMedians(as.matrix(agevec_samples), na.rm = TRUE)
   spectrum$ageQ16         = colQuantiles(as.matrix(agevec_samples), probs = 0.16, na.rm = TRUE)
@@ -1432,6 +1661,9 @@ compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_fritz_fit.rds"),
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_lrdmbb_fit.rds"), LRDBBSKIRTOR, "lrdmbb")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_lrdliu_fit.rds"), LRDLIU, "lrdliu")
 compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_sirocco_fit.rds"), SIROCCO, "sirocco")
+
+compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_noAGN_fit.rds"), NULL, "noAGN")
+# compute_fit_sed(paste0(main_dir, "/data/literature_lrds/Rosetta_fritz_dusty_fit.rds"), Fritz, "fritz_dusty")
 
 foo = readRDS(paste0(main_dir, "/data/literature_lrds/Cliff_fritz_fit.rds"))
 bar = readRDS(paste0(main_dir, "/data/literature_lrds/MoMBH1_fritz_fit.rds"))

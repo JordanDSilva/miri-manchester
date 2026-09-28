@@ -15,40 +15,40 @@ library(rhdf5)
 do_stuff_goodss = function(fname){
   ## change as necessary
   star_cat = data.frame(fread(
-    paste0("~/Documents/Epochs/data/stars/", fname, "/GAIA_", fname, "_MIRI_photometry.csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/stars/", fname, "/GAIA_", fname, "_MIRI_photometry.csv")
   ))
-  jades_F277W_warp = Rfits_point("~/Documents/Epochs/data/images/smiles/warped/JADES-DR3-GS_F277W_smiles_warp.fits")
+  jades_F277W_warp = Rfits_point("~/Documents/JWST-MIRI-AGN/data/images/smiles/warped/JADES-DR3-GS_F277W_smiles_warp.fits")
   ## needed to discern if point lies out of footprint
   ## load in Epochsv2
   ## change as necessary - GOODS-S default
-  GS_epochsV2 = data.frame(fread(file = "~/Documents/Epochs/data/catalogues/EPOCHS-v2_GS_Sel-F277W+F356W+F444W_v14_psfmatch_F444W_empirical+v14_psfmatch_F444W_empirical.csv"))
+  GS_epochsV2 = data.frame(fread(file = "~/Documents/JWST-MIRI-AGN/data/catalogues/EPOCHS-v2_GS_Sel-F277W+F356W+F444W_v14_psfmatch_F444W_empirical+v14_psfmatch_F444W_empirical.csv"))
 
   profound_cat = data.frame(fread(
-    paste0("~/Documents/Epochs/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_segstats.csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_segstats.csv")
   ))
   phot_cat = data.frame(fread(
-    paste0("~/Documents/Epochs/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_photometry.csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_photometry.csv")
   ))
   aper_cat = data.frame(fread(
-    paste0("~/Documents/Epochs/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_aperture_photometry.csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/jp/", fname, "/", fname, "_", fname, "_", fname, "_aperture_photometry.csv")
   ))
 
   MW_foreground_extinction = data.frame(fread(
-    paste0("~/Documents/Epochs/data/throughputs/MW_foreground_extinction.csv")
+    paste0("~/Documents/JWST-MIRI-AGN/data/throughputs/MW_foreground_extinction.csv")
   ))
   stack = Rfits_read_image(
-    paste0("~/Documents/Epochs/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
+    paste0("~/Documents/JWST-MIRI-AGN/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
     ext = 1, header = TRUE
   )
   segim = Rfits_read_image(
-    paste0("~/Documents/Epochs/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
+    paste0("~/Documents/JWST-MIRI-AGN/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
     ext = "segim", header = FALSE
   )
   segim_wcs = Rfits_read_image(
-    paste0("~/Documents/Epochs/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
+    paste0("~/Documents/JWST-MIRI-AGN/data/images/", fname, "/", fname, "_", fname, "_", fname, "_profound_stack.fits"),
     ext = "segim", header = TRUE
   )
-  frame_info = data.frame(fread(paste0("~/Documents/Epochs/data/depths/", fname, "_profound_frame_stats.csv")))
+  frame_info = data.frame(fread(paste0("~/Documents/JWST-MIRI-AGN/data/depths/", fname, "_profound_frame_stats.csv")))
   # 
   # # star flags
   # magplot(
@@ -89,7 +89,7 @@ do_stuff_goodss = function(fname){
   
   # for(i in which(flag_hot_pixel)){
   #   pdf(
-  #     paste0("~/Documents/Epochs/data/plots/artefacts/hotpixels/", i, ".pdf"), width = 5, height = 5
+  #     paste0("~/Documents/JWST-MIRI-AGN/data/plots/artefacts/hotpixels/", i, ".pdf"), width = 5, height = 5
   #   )
   #   plot(
   #     stack[
@@ -132,6 +132,8 @@ do_stuff_goodss = function(fname){
   )
   flag_epochs_unmatch_idx = !(1:dim(profound_cat)[1] %in% match_idx$bestmatch$compareID)
   
+  GS_epochsV2$
+  
   flag_outside_nircam_idx = rep(0L, length(flag_epochs_unmatch_idx))
   for(i in which(flag_epochs_unmatch_idx)){
     cutout = jades_F277W_warp[
@@ -167,9 +169,9 @@ do_stuff_goodss = function(fname){
     
     epochsv2_flux_errs = data.frame(GS_epochsV2)[ ,grep(pattern = glob2rx("FLUXERR_APER*_loc_depth_5pc_Jy"), x = names(GS_epochsV2), value = TRUE)]
     ## load in depths from GALFIND
-    JADES_DR3_GS_EAST_depths = read.table(file = paste0("~/Documents/Epochs/data/depths/JADES-DR3-GS-East_depths.ecsv"))
+    JADES_DR3_GS_EAST_depths = read.table(file = paste0("~/Documents/JWST-MIRI-AGN/data/depths/JADES-DR3-GS-East_depths.ecsv"))
     JADES_DR3_GS_EAST_depths_medians = as.numeric(head(JADES_DR3_GS_EAST_depths$V6[JADES_DR3_GS_EAST_depths$V5 == "all"],-1))
-    JADES_DR3_GS_SOUTH_depths = read.table(file = paste0("~/Documents/Epochs/data/depths/JADES-DR3-GS-South_depths.ecsv"))
+    JADES_DR3_GS_SOUTH_depths = read.table(file = paste0("~/Documents/JWST-MIRI-AGN/data/depths/JADES-DR3-GS-South_depths.ecsv"))
     JADES_DR3_GS_SOUTH_depths_medians = as.numeric(head(JADES_DR3_GS_SOUTH_depths$V6[JADES_DR3_GS_SOUTH_depths$V5 == "all"],-1))
     
     # epochsv2_flux_errs[epochsv2_flux_errs == -999] = 0.05*epochsv2_fluxes[epochsv2_flux_errs == -999]
@@ -416,7 +418,7 @@ do_stuff_goodss = function(fname){
   ## NA will become -999 in the catalogue
   Rfits_write(
     the_catalogue, 
-    filename = paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits")
+    filename = paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits")
   )
   
   return(
@@ -466,10 +468,10 @@ col_names <- c(
 )
 Rfits_write(
   and_in_the_darkness_bind_them[col_names], 
-  filename = paste0("~/Documents/Epochs/data/catalogues/", "miri", "_profound_multiband_cat.fits")
+  filename = paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", "miri", "_profound_multiband_cat.fits")
 )
 
-h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
 # Create the file if it doesn't exist yet; otherwise we append into it
 if (!file.exists(h5file)) {
   h5createFile(h5file)
@@ -498,7 +500,7 @@ h5createGroup(h5file, "frame_stats")
 for(ff in field_names){
   frame_stats = data.frame(
     fread(
-      paste0("~/Documents/Epochs/data/depths/", ff, "_profound_frame_stats.csv")
+      paste0("~/Documents/JWST-MIRI-AGN/data/depths/", ff, "_profound_frame_stats.csv")
     )
   )
   

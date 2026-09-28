@@ -19,7 +19,7 @@ Msun = 1.98840987e+30
 speedOfLight = 299792458
 eddTime = ((1.26e38 * 1e-7) / (Msun * speedOfLight^2))^-1 / (60 * 60 * 24 * 365.2425) # in years
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
 uni_age_fast = approxfun(
   x = seq(0, 100, 0.01),
@@ -48,7 +48,7 @@ do_fit = function(M0, epsilon = 0.1, t0 = 0){
       
       # read in posterior
       read_gal = readRDS(
-        paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
+        paste0("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
       )
       
       uni_age = cosdistUniAgeAtz(z = prospect_cat$zQ50[kk], ref = "737")
@@ -155,13 +155,13 @@ SMBH_df = dplyr::bind_cols(
 
 fwrite(
   SMBH_df,
-  "~/Documents/Epochs/data/smbh/prospect_robust_SMBH_results_fixed.csv"
+  "~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_SMBH_results_fixed.csv"
 )
 
 # read in data, and also data from BHAR/SFR ratio
 
-# SMBH_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_SMBH_results.csv"))
-# BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"))
+# SMBH_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.csv"))
+# BHARSFR_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_BHAR_SFR_ratio.csv"))
 # 
 # SMBH_combine = cbind(
 #   SMBH_df,
@@ -170,7 +170,7 @@ fwrite(
 # SMBH_combine[is.na(SMBH_combine)] <- -999
 # SMBH_combine$lowerlim = as.integer(SMBH_combine$lowerlim)
 # 
-# h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+# h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
 # # Create the file if it doesn't exist yet; otherwise we append into it
 # if (!file.exists(h5file)) {
 #   h5createFile(h5file)

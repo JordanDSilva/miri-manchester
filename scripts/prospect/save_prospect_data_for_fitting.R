@@ -15,7 +15,7 @@ library(RColorBrewer)
 
 ## Make a .rda with all of the data I will need for fitting
 
-main_dir = "~/Documents/Epochs/"
+main_dir = "~/Documents/JWST-MIRI-AGN/"
 fname = "miri"
 
 todaysdate = Sys.Date()
@@ -33,13 +33,13 @@ phot_cat = Rfits_read(
 ## make sure to put zPDF prior back to prior func
 fname_append = "_agn_blue_sfhz_col"
 eazy_zPDFs = data.frame(fread(
-  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
+  paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF", fname_append, ".csv")
 ))
 eazy_zPDFs_normals = data.frame(fread(
-  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv")
+  paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_zPDF_normal", fname_append, ".csv")
 ))
 eazy_stats = data.frame(fread(
-  paste0("~/Documents/Epochs/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
+  paste0("~/Documents/JWST-MIRI-AGN/data/eazy/", fname, fname_append, "/", fname, "_eazy_stats", fname_append, ".csv")
 ))
 eazy = Rfits_read_table(
   paste0(main_dir, "/data/eazy/", fname, fname_append, "/", fname, "_zphot", fname_append, ".out.zout.fits")
@@ -129,10 +129,10 @@ save(
   pfunc, pfunc_driver26_alpha, pfunc_no_tau_birth,
   constraintfunc, constraintfunc_driver26_alpha, 
   eazy_zPDFs, eazy_zPDFs_normals, eazy_stats,
-  file = "~/Documents/Epochs/data/prospect_data_for_fitting.rda"
+  file = "~/Documents/JWST-MIRI-AGN/data/prospect_data_for_fitting.rda"
 )
 file.copy(
-  "~/Documents/Epochs/data/prospect_data_for_fitting.rda",
-  "~/Documents/Epochs/data/prospect/prospect_data_for_fitting.rda",
+  "~/Documents/JWST-MIRI-AGN/data/prospect_data_for_fitting.rda",
+  "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_data_for_fitting.rda",
   overwrite = TRUE
 )

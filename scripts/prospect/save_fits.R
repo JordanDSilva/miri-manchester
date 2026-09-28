@@ -1,5 +1,5 @@
-library(Rfits)
-library(ProSpect)
+# library(Rfits)
+# library(ProSpect)
 
 save_fits = function(save_stub, fits_stub){
   
@@ -132,3 +132,12 @@ save_fits(
   save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_sirocco_sed.rds",
   fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_sirocco_sed.fits"
 )
+
+save_fits(
+  save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_noAGN_sed.rds",
+  fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_noAGN_sed.fits"
+)
+# save_fits(
+#   save_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_fritz_dusty_sed.rds",
+#   fits_stub = "~/Documents/JWST-MIRI-AGN/data/literature_lrds/Rosetta_fritz_dusty_sed.fits"
+# )

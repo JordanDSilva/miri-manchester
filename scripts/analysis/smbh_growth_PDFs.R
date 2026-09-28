@@ -19,7 +19,7 @@ Msun = 1.98840987e+30
 speedOfLight = 299792458
 eddTime = ((1.26e38 * 1e-7) / (Msun * speedOfLight^2))^-1 / (60 * 60 * 24 * 365.2425) # in years
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
 uni_age_fast = approxfun(
   x = seq(0, 100, 0.01),
@@ -37,7 +37,7 @@ SMBH_func = function(t, M0, lambda, epsilon, t0){
   )
 }
 
-t0 = 0.09850496
+t0 = cosdistUniAgeAtz(z = 30, ref = "737")
 
 # do distributions of things
 N = 100000
@@ -50,7 +50,7 @@ for(kk in 1:nrow(prospect_cat)){
     
     # read in posterior
     read_gal = readRDS(
-      paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
+      paste0("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
     )
     
     uni_age = cosdistUniAgeAtz(z = prospect_cat$zQ50[kk], ref = "737")
@@ -169,14 +169,14 @@ eddTime / median((1-0.1)/0.1)*median(0.5)
 
 fwrite(
   SMBH_df,
-  "~/Documents/Epochs/data/smbh/prospect_robust_SMBH_results_PDF.csv"
+  "~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_SMBH_results_PDF.csv"
 )
 
 # read in data, and also data from BHAR/SFR ratio
 
-SMBH_df = data.frame(fread("~/Documents/Epochs/data/smbh/prospect_robust_SMBH_results_PDF.csv"))
-SMBH_df_fixed = data.frame(fread("~/Documents/Epochs/data/smbh/prospect_robust_SMBH_results_fixed.csv"))
-BHARSFR_df = data.frame(fread("~/Documents/Epochs/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"))
+SMBH_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_SMBH_results_PDF.csv"))
+SMBH_df_fixed = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_SMBH_results_fixed.csv"))
+BHARSFR_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_BHAR_SFR_ratio.csv"))
 
 SMBH_combine = cbind(
   SMBH_df,
@@ -186,15 +186,13 @@ SMBH_combine = cbind(
 SMBH_combine[is.na(SMBH_combine)] <- -999
 SMBH_combine$lowerlim = as.integer(SMBH_combine$lowerlim)
 
-h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
 # Create the file if it doesn't exist yet; otherwise we append into it
 if (!file.exists(h5file)) {
   h5createFile(h5file)
 }
-h5delete(h5file, "SMBH/SMBH")
+if (any(h5ls(h5file)$group == "/SMBH" & h5ls(h5file)$name == "SMBH")) {
+  h5delete(h5file, "SMBH/SMBH")
+}
 h5createGroup(h5file, "SMBH")
 h5write(SMBH_combine, file = h5file, name = paste0("SMBH/SMBH"))
-
-cosdistUniAgeAtz(
-  z = 30, ref = "737"
-)

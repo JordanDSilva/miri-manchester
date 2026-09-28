@@ -6,7 +6,7 @@ library(foreach)
 library(stringr)
 library(matrixStats)
 
-field_name = 'smiles'
+field_name = 'midis'
 # main_dir = '~/mnt/morgan/jdsilva/data/JP/'
 main_dir = '/data/JP/'
 

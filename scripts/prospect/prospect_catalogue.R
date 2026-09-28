@@ -20,7 +20,7 @@ if (length(args[1]) == 0 | is.na(args[1])) {
 }
 
 if (length(args[2]) == 0 | is.na(args[2])) {
-  main_dir = "~/Documents/Epochs/"
+  main_dir = "~/Documents/JWST-MIRI-AGN/"
 } else {
   main_dir <- args[2]
 }

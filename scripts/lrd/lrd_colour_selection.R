@@ -7,41 +7,45 @@ library(Rwcs)
 fname = "miri" # all data, smiles, midis, etc
 
 phot_cat = data.frame(Rfits_read_table(
-  paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
+  paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
   ext = 2
 ))
+phot_stats = data.frame(Rfits_read_table(
+  paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
+  ext = "PhotStats"
+))
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
 raw_cat = data.frame(Rfits_read_table(
-  paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
+  paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
   ext = "RawTot"
 ))
 raw_cat16 = data.frame(Rfits_read_table(
-  paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
+  paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
   ext = "Raw16"
 ))
 raw_cat32 = data.frame(Rfits_read_table(
-  paste0("~/Documents/Epochs/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
+  paste0("~/Documents/JWST-MIRI-AGN/data/catalogues/", fname, "_profound_multiband_cat.fits"), 
   ext = "Raw32"
 ))
 
 eazy = Rfits_read_table(
-  "~/Documents/Epochs/data/eazy/miri_agn_blue_sfhz_col/miri_zphot_agn_blue_sfhz_col.out.zout.fits"
+  "~/Documents/JWST-MIRI-AGN/data/eazy/miri_agn_blue_sfhz_col/miri_zphot_agn_blue_sfhz_col.out.zout.fits"
 )
 
-filters_info = data.frame(fread(paste0("~/Documents/Epochs/data/throughputs/wavelengths.txt")))
-filter_transforms = readRDS(paste0("~/Documents/Epochs/data/throughputs/filt_funcs.rds"))
+filters_info = data.frame(fread(paste0("~/Documents/JWST-MIRI-AGN/data/throughputs/wavelengths.txt")))
+filter_transforms = readRDS(paste0("~/Documents/JWST-MIRI-AGN/data/throughputs/filt_funcs.rds"))
 
 df_flux = raw_cat[, paste0(filters_info$filters, "_fluxt")]
 df_flux_err = raw_cat[, paste0(filters_info$filters, "_scaled_fluxt_err")]
 
 # epochs2_goodss_bd_cat_objects = Rfits_read_table(
-#   "~/Documents/Epochs/data/catalogues/epochs2_goodss_bd_cat.fits",
+#   "~/Documents/JWST-MIRI-AGN/data/catalogues/epochs2_goodss_bd_cat.fits",
 #   ext = 2
 # )
 # epochs2_goodss_bd_cat = Rfits_read_table(
-#   "~/Documents/Epochs/data/catalogues/epochs2_goodss_bd_cat.fits",
+#   "~/Documents/JWST-MIRI-AGN/data/catalogues/epochs2_goodss_bd_cat.fits",
 #   ext = "SELECTION"
 # )
 # 
@@ -78,20 +82,22 @@ lrd_idx = (
   
   raw_cat32$F444W_flux_app_0.32/raw_cat16$F444W_flux_app_0.16 <= 1.7 & 
   (raw_cat32$F444W_flux_app_0.32 != -999 | raw_cat16$F444W_flux_app_0.16 != -999) & 
-  # F150W_flux != -999 & 
-  # F200W_flux != -999 & 
-  # F277W_flux != -999 & 
-  # F444W_flux != -999 & 
+    
+  F150W_flux != -999 &
+  F200W_flux != -999 &
+  F277W_flux != -999 &
+  F444W_flux != -999 &
+    
   phot_cat$flag == 0L & 
   phot_cat$flag == 0 & 
   eazy$z_ml > 0 &
-  prospect_cat$zQ50 >= 3 & 
-  prospect_cat$zQ50 < 15
+  prospect_cat$zQ50 >= 1 & 
+  prospect_cat$zQ50 < 10
 )
 
 for(kk in which(lrd_idx)){
   png(
-    paste0("/Users/jordan/Documents/Epochs/plots/lrd_colour_select/fit_gal_",kk, ".png"),
+    paste0("/Users/jordan/Documents/JWST-MIRI-AGN/plots/lrd_colour_select/fit_gal_",kk, ".png"),
     width = 7, height = 7, units = "in", res = 240
   )
   par(mfrow = c(1,1), oma = rep(1.5, 4), mar = rep(1.5,4))
@@ -195,39 +201,14 @@ for(kk in which(lrd_idx)){
 
 fwrite(
   list(which(lrd_idx)),
-  file = "~/Documents/Epochs/data/prospect/LRD_colour_selection_IDs.txt", 
+  file = "~/Documents/JWST-MIRI-AGN/data/prospect/LRD_colour_selection_IDs.txt", 
 )
 
-
-# 
-# eazy$z_ml[which(lrd_idx)]
-# 
-# magplot(
-#   -2.5*log10(F277W_flux/F444W_flux),
-#   -2.5*log10(F277W_flux/F560W_flux)
-# )
-# points(
-#   -2.5*log10(F277W_flux/F444W_flux)[lrd_idx],
-#   -2.5*log10(F277W_flux/F560W_flux)[lrd_idx],
-#   pch = 16, 
-#   col = colorRampPalette(c("blue", "red"))(5)[as.numeric(cut(eazy$z_ml, breaks = 5))][lrd_idx]
-# )
-# 
-
-# -2.5*log10(F444W_flux/F770W_flux) >
-# maghist(
-#   -2.5*log10(F444W_flux/F770W_flux)[eazy$z_ml > 4], log = 'y'
-# )
-
-fwrite(
-  list(which(lrd_idx)),
-  file = "~/Documents/Epochs/data/prospect/LRD_colour_selection_IDs.txt", 
-)
 
 for(i in which(lrd_idx)){
   file.copy(
-    paste0("~/Documents/Epochs/plots/fitted_candidates/gal_", i, ".png"),
-    paste0("~/Documents/Epochs/plots/lrd_colour_select//gal_", i, ".png"),
+    paste0("~/Documents/JWST-MIRI-AGN/plots/fitted_candidates/gal_", i, ".png"),
+    paste0("~/Documents/JWST-MIRI-AGN/plots/lrd_colour_select//gal_", i, ".png"),
     overwrite = TRUE,
     recursive = TRUE
   )
@@ -236,7 +217,7 @@ for(i in which(lrd_idx)){
 for(kk in which(lrd_idx)){
   png(
     paste0(
-      "~/Documents/Epochs/plots/lrd_colour_select/fit_gal_",kk, ".png"
+      "~/Documents/JWST-MIRI-AGN/plots/lrd_colour_select/fit_gal_",kk, ".png"
     ), width = 18, height = 6, units = "in", res = 240
   )
   par(mfrow = c(1,3), oma = rep(1.5, 4), mar = rep(1.5,4))
@@ -347,20 +328,20 @@ for(kk in which(lrd_idx)){
   )
   
   sed_agn = readRDS(
-    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
+    paste0("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
   )
   sed_stars = readRDS(
-    paste0("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_norm_eazy/galID_", kk, ".rds")
+    paste0("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_norm_eazy/galID_", kk, ".rds")
   )
   
   sed_agn_samp = readRDS(
-    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
+    paste0("~/Documents/JWST-MIRI-AGN/data/prospect_seds/photoZ_bc03_snorm_fritz_norm_eazy/galID_", kk, ".rds")
   )
   sed_stars_samp = readRDS(
-    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_norm_eazy/galID_", kk, ".rds")
+    paste0("~/Documents/JWST-MIRI-AGN/data/prospect_seds/photoZ_bc03_snorm_norm_eazy/galID_", kk, ".rds")
   )
   sed_mbb_samp = readRDS(
-    paste0("~/Documents/Epochs/data/prospect_seds/photoZ_bc03_snorm_LRDMBB_norm_eazy_lrd/galID_", kk, ".rds")
+    paste0("~/Documents/JWST-MIRI-AGN/data/prospect_seds/photoZ_bc03_snorm_LRDMBB_norm_eazy_lrd/galID_", kk, ".rds")
   )
   
   ff = unlist(df_flux[kk, ])
@@ -443,10 +424,3 @@ for(kk in which(lrd_idx)){
   )
   dev.off()
 }
-
-lrd_redo_idx = foo$ID[foo$LPBest <= quantile(foo$LPBest, probs = 0.25, na.rm = TRUE) & !is.na(foo$zBest)]
-
-fwrite(
-  list(lrd_redo_idx),
-  file = "~/Documents/Epochs/data/prospect/LRD_colour_selection_IDs_redo.txt", 
-)

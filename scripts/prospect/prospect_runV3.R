@@ -16,12 +16,13 @@ set.seed(666)
 CMANiters = 2000
 LDNiters = 2000
 ncores = 1 
-max_slurm_jobs = 84 # should be the maximum of your job array
-slurm_paralel_job_array = FALSE
-overwrite = FALSE
+max_slurm_jobs = 20 # should be the maximum of your job array
+slurm_paralel_job_array = TRUE
+overwrite = TRUE
+compute_post = TRUE
 
 do_spec = FALSE
-do_robust = FALSE
+do_robust = TRUE
 redo_fits = FALSE
 
 min_pc_err = 0.1
@@ -39,7 +40,7 @@ if (length(args[1]) == 0 | is.na(args[1])) {
 }
 
 if (length(args[2]) == 0 | is.na(args[2])) {
-  main_dir = "~/Documents/Epochs/"
+  main_dir = "~/Documents/JWST-MIRI-AGN/"
 } else {
   main_dir <- args[2]
 }
@@ -71,7 +72,7 @@ load(
 ## eazy zPDFs loaded
 
 robust_ids = which(
-  phot_cat$ProFound$flag == 0 & eazy_stats$z_ml > 0
+  phot_cat$ProFound$flag == 0 & eazy_stats$z_ml > 0 & eazy_stats$z_ml < 20
 )
 if(redo_fits){
   stop("Do something here")
@@ -135,6 +136,7 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
       
       emission = TRUE,
       photoz = TRUE,
+      z_genSF = 30,
       IGMfunc = "Inoue14",
 
       mtrunc = 2,
@@ -269,6 +271,7 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
       
       emission = TRUE,
       photoz = TRUE,
+      z_genSF = 30,
       IGMfunc = "Inoue14",
       
       mtrunc = 2,
@@ -390,6 +393,7 @@ do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
       
       emission = TRUE,
       photoz = TRUE,
+      z_genSF = 30,
       IGMfunc = "Inoue14",
       
       mtrunc = 2,
@@ -587,12 +591,25 @@ foreach(kk = fit_idx) %dopar% {
     save_dir, "/galID_",kk, ".rds" 
   )
   
-  print(save_stub)
-  
   if(file.exists(save_stub) & !overwrite){
     message("file exists")
   }else{
-    fit = do_fit(kk)
+    
+    start_ = Sys.time()	  
+    if(file.exists(save_stub) & compute_post){
+      print(kk)	    
+      fit = readRDS(save_stub)
+      fit$bestfit$Data$prior = pfunc
+      fit$bestfit$Data$constraints = NULL
+      fit$bestfit$Data$speclib = BC03hr
+      if(grepl("fritz", fittype)){
+        fit$bestfit$Data$AGN = Fritz
+      }
+      fit$bestfit$Data$Dale = Dale_NormTot
+    }else{
+      fit = do_fit(kk)
+    }
+    print(Sys.time() - start_)
     
     summ = suppressMessages(
       ProSpectUtils::calc_astro(

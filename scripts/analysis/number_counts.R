@@ -7,8 +7,8 @@ library(rhdf5)
 
 ## number counts
 
-main_dir = "~/Documents/Epochs/"
-h5file <- path.expand("~/Documents/Epochs/data/analysis_data.h5")
+main_dir = "~/Documents/JWST-MIRI-AGN/"
+h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
 
 field_names = c(
   "smiles",
@@ -151,7 +151,7 @@ stone25 = df3 <- data.frame(
 )
 fwrite(
   stone25,
-  "~/Documents/Epochs/data/literature/number_counts/stone25.csv"
+  "~/Documents/JWST-MIRI-AGN/data/literature/number_counts/stone25.csv"
 )
 
 phot = Rfits_read(paste0(main_dir, "/data/catalogues/", "miri", "_profound_multiband_cat.fits"))

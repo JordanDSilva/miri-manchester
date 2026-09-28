@@ -6,27 +6,27 @@ library(celestial)
 library(dplyr)
 library(bit64)
 
-filter_info = data.frame(fread("~/Documents/Epochs/data/throughputs/wavelengths.txt"))
-phot_cat = Rfits_read("~/Documents/Epochs/data/catalogues/miri_profound_multiband_cat.fits", data.table = TRUE)
-h5file = "~/Documents/Epochs/data/analysis_data.h5"
+filter_info = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/throughputs/wavelengths.txt"))
+phot_cat = Rfits_read("~/Documents/JWST-MIRI-AGN/data/catalogues/miri_profound_multiband_cat.fits", data.table = TRUE)
+h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
-AGN_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
-Stellar_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_norm_eazy_astro_cat.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+AGN_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
+Stellar_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_norm_eazy_astro_cat.csv"))
 
 # read in literature stuff
-stemo20 = data.frame(Rfits_read_table("~/Documents/Epochs/data/literature/AGN-Catalogues/villforth20_ACS_AGN_Catalog.fits"))
+stemo20 = data.frame(Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/villforth20_ACS_AGN_Catalog.fits"))
 
-barrows21 = data.frame(fread("/Users/jordan/Documents/Epochs/data/literature/AGN-Catalogues/barrows21_wiseAGN.csv"))
+barrows21 = data.frame(fread("/Users/jordan/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/barrows21_wiseAGN.csv"))
 
-juodzbalis26 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/juodzbalis26_agn_data_raw.csv"))
-juodzbalis26_sed = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/juodzbalis26_sed_fits_raw.csv"))
+juodzbalis26 = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/juodzbalis26_agn_data_raw.csv"))
+juodzbalis26_sed = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/juodzbalis26_sed_fits_raw.csv"))
 juodzbalis26_combine = cbind(juodzbalis26, juodzbalis26_sed)
 
 
-jades_dr4 = Rfits_read_table("~/Documents/Epochs/data/literature/specz-Catalogues/jades_Combined_DR4_external_v1.2.1.fits")
+jades_dr4 = Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature/specz-Catalogues/jades_Combined_DR4_external_v1.2.1.fits")
 jades_deephst = jades_dr4[jades_dr4$PID == 1210 | jades_dr4$PID == 3215, ]
-scholtz25 = data.frame(fread("~/Documents/Epochs/data/literature/AGN-Catalogues/scholtz25_agn.csv"))
+scholtz25 = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/scholtz25_agn.csv"))
 head(jades_deephst$NIRSpec_ID)
 head(scholtz25$ID)
 
@@ -147,16 +147,22 @@ df = data.frame(
   "StellarMass_hi_lit" = (10^(literature_AGN$Mstar[match_cat_idx$bestmatch$refID] + literature_AGN$Mstar_hi[match_cat_idx$bestmatch$refID])) - 10^literature_AGN$Mstar[match_cat_idx$bestmatch$refID]
 )
 
-h5file = "~/Documents/Epochs/data/analysis_data.h5"
-h5createFile(h5file)
-h5delete(
-  h5file, 
-  "literatureAGN"
-)
+h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
+# Only create the file if it doesn't already exist
+if (!file.exists(h5file)) {
+  h5createFile(h5file)
+}
+
+# Only delete the group if it already exists inside the file
+if ("literatureAGN" %in% h5ls(h5file)$name) {
+  h5delete(h5file, "literatureAGN")
+}
+
 h5createGroup(
   file = h5file,
   "literatureAGN"
 )
+
 h5write(
   obj = df,
   file = h5file,
@@ -366,7 +372,7 @@ abline(0,1)
 #   "StellarMass_hi_j26" = (10^(juodzbalis26_combine$log_Mstar_FPHO[match_juodzbalis26$bestmatch$refID] + juodzbalis26_combine$log_Mstar_FPHO_hi[match_juodzbalis26$bestmatch$refID])) - 10^juodzbalis26_combine$log_Mstar_FPHO[match_juodzbalis26$bestmatch$refID]
 # )
 # 
-# h5file = "~/Documents/Epochs/data/analysis_data.h5"
+# h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
 # h5createFile(h5file)
 # h5createGroup(
 #   file = h5file,
