@@ -1,5 +1,6 @@
 library(data.table)
 library(Rfits)
+library(Rwcs)
 library(rhdf5)
 library(magicaxis)
 library(celestial)
@@ -14,15 +15,21 @@ prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_
 AGN_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
 Stellar_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_norm_eazy_astro_cat.csv"))
 
+sample_idx = prospect_cat$zQ50 >= 1.07467287 & prospect_cat$zQ50 < 9.98276084 & !is.na(prospect_cat$zQ50)
+
+prospect_cat = prospect_cat[sample_idx, ]
+AGN_cat = AGN_cat[sample_idx, ]
+Stellar_cat = Stellar_cat[sample_idx, ]
+
 # read in literature stuff
 stemo20 = data.frame(Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/villforth20_ACS_AGN_Catalog.fits"))
+stemo20 = stemo20[stemo20$L_bol_x_md > 0, ]
 
 barrows21 = data.frame(fread("/Users/jordan/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/barrows21_wiseAGN.csv"))
 
 juodzbalis26 = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/juodzbalis26_agn_data_raw.csv"))
 juodzbalis26_sed = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/AGN-Catalogues/juodzbalis26_sed_fits_raw.csv"))
 juodzbalis26_combine = cbind(juodzbalis26, juodzbalis26_sed)
-
 
 jades_dr4 = Rfits_read_table("~/Documents/JWST-MIRI-AGN/data/literature/specz-Catalogues/jades_Combined_DR4_external_v1.2.1.fits")
 jades_deephst = jades_dr4[jades_dr4$PID == 1210 | jades_dr4$PID == 3215, ]
@@ -90,7 +97,7 @@ literature_AGN = data.frame(
 match_cat_idx = coordmatch(
   coordref = literature_AGN[, c("RA", "DEC")],
   coordcompare = prospect_cat[, c("RA", "Dec")],
-  rad = 0.3
+  rad = 1.0
 )
 
 df = data.frame(
@@ -146,6 +153,150 @@ df = data.frame(
   "StellarMass_lo_lit" = 10^literature_AGN$Mstar[match_cat_idx$bestmatch$refID] - (10^(literature_AGN$Mstar[match_cat_idx$bestmatch$refID] - literature_AGN$Mstar_lo[match_cat_idx$bestmatch$refID])),
   "StellarMass_hi_lit" = (10^(literature_AGN$Mstar[match_cat_idx$bestmatch$refID] + literature_AGN$Mstar_hi[match_cat_idx$bestmatch$refID])) - 10^literature_AGN$Mstar[match_cat_idx$bestmatch$refID]
 )
+
+write.table(
+  df$ID[df$FitType == "StellarAGN"],
+  "~/Documents/JWST-MIRI-AGN/data/prospect/match_better_fit_AGN.txt"
+)
+
+
+colors = rep(adjustcolor("yellow", 0.7), 19755)
+
+# Have to see how many of the actual candidates from all of these catalogues are actually within the smiles footprint, that we could detect
+smiles_footprint = Rfits_read("~/Documents/JWST-MIRI-AGN/data/images/smiles/smiles_smiles_smiles_profound_stack.fits")
+png("~/Desktop/smiles_footprint.png", width = nrow(smiles_footprint$image[,]), height= ncol(smiles_footprint$image[,]), res = 240)
+plot(smiles_footprint$image[,], coord.type = "deg", sparse = 1, locut = 0.5, hicut = 0.999)
+ProFound::profoundSegimPlot(
+  image = matrix(0, nrow(smiles_footprint$image[,]), ncol(smiles_footprint$image[,])),
+  segim = smiles_footprint$segim[,]$imDat,
+  sparse = 1, 
+  col = rep(adjustcolor("yellow", 0.7), 19755),
+  add = TRUE
+)
+points(
+  Rwcs_s2p(RA = juodzbalis26_combine$RA, Dec = juodzbalis26_combine$Dec, keyvalues = smiles_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("red", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Juodzbalis26"], Dec = df$Dec[df$survey == "Juodzbalis26"], keyvalues = smiles_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "red", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = stemo20$RA, Dec = stemo20$DEC, keyvalues = smiles_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("green", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Stemo20"], Dec = df$Dec[df$survey == "Stemo20"], keyvalues = smiles_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "green", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = scholtz25_merged$RA_TARG, Dec = scholtz25_merged$Dec_TARG, keyvalues = smiles_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("cyan", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Scholtz26"], Dec = df$Dec[df$survey == "Scholtz26"], keyvalues = smiles_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "cyan", 
+  cex = 2.0
+)
+dev.off()
+
+midis_footprint = Rfits_read("~/Documents/JWST-MIRI-AGN/data/images/midis/midis_midis_midis_profound_stack.fits")
+png("~/Desktop/midis_footprint.png", width = nrow(midis_footprint$image[,]), height= ncol(midis_footprint$image[,]), res = 240)
+plot(midis_footprint$image[,], coord.type = "deg", sparse = 1, locut = 0.5, hicut = 0.999)
+ProFound::profoundSegimPlot(
+  image = matrix(0, nrow(midis_footprint$image[,]), ncol(midis_footprint$image[,])),
+  segim = midis_footprint$segim[,]$imDat,
+  sparse = 1, 
+  col = rep(adjustcolor("yellow", 0.7), 19755),
+  add = TRUE
+)
+points(
+  Rwcs_s2p(RA = juodzbalis26_combine$RA, Dec = juodzbalis26_combine$Dec, keyvalues = midis_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("red", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Juodzbalis26"], Dec = df$Dec[df$survey == "Juodzbalis26"], keyvalues = midis_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "red", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = stemo20$RA, Dec = stemo20$DEC, keyvalues = midis_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("green", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Stemo20"], Dec = df$Dec[df$survey == "Stemo20"], keyvalues = midis_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "green", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = scholtz25_merged$RA_TARG, Dec = scholtz25_merged$Dec_TARG, keyvalues = midis_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("cyan", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Scholtz26"], Dec = df$Dec[df$survey == "Scholtz26"], keyvalues = midis_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "cyan", 
+  cex = 2.0
+)
+dev.off()
+
+nircam_footprint = Rfits_read("~/Documents/JWST-MIRI-AGN/data/images/smiles/warped/JADES-DR3-GS_F277W_smiles_warp.fits")
+png("~/Desktop/nircam_footprint.png", width = nrow(nircam_footprint$image[,]), height= ncol(nircam_footprint$image[,]), res = 240)
+plot(nircam_footprint$image[,], coord.type = "deg", sparse = 1, locut = 0.5, hicut = 0.999)
+ProFound::profoundSegimPlot(
+  image = matrix(0, nrow(smiles_footprint$image[,]), ncol(smiles_footprint$image[,])),
+  segim = smiles_footprint$segim[,]$imDat,
+  sparse = 1, 
+  col = rep(adjustcolor("yellow", 0.7), 19755),
+  add = TRUE
+)
+points(
+  Rwcs_s2p(RA = juodzbalis26_combine$RA, Dec = juodzbalis26_combine$Dec, keyvalues = nircam_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("red", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Juodzbalis26"], Dec = df$Dec[df$survey == "Juodzbalis26"], keyvalues = nircam_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "red", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = stemo20$RA, Dec = stemo20$DEC, keyvalues = nircam_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("green", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Stemo20"], Dec = df$Dec[df$survey == "Stemo20"], keyvalues = nircam_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "green", 
+  cex = 2.0
+)
+points(
+  Rwcs_s2p(RA = scholtz25_merged$RA_TARG, Dec = scholtz25_merged$Dec_TARG, keyvalues = nircam_footprint$image$keyvalues), 
+  pch = 16, 
+  col = adjustcolor("cyan", 0.4)
+)
+points(
+  Rwcs_s2p(RA = df$RA[df$survey == "Scholtz26"], Dec = df$Dec[df$survey == "Scholtz26"], keyvalues = nircam_footprint$image$keyvalues), 
+  pch = "*", 
+  col = "cyan", 
+  cex = 2.0
+)
+dev.off()
 
 h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
 # Only create the file if it doesn't already exist

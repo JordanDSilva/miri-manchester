@@ -10,11 +10,6 @@ slurm_paralel_job_array = TRUE
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
   idx <- 1
-} else if (grepl(":", args[1])) {
-  bounds <- as.integer(strsplit(args[1], ":")[[1]])
-  idx <- bounds[1]:bounds[2]
-} else if (grepl(",", args[1])) {
-  idx <- as.integer(strsplit(args[1], ",")[[1]])
 }else {
   idx <- as.integer(args[1])
 }
@@ -28,6 +23,21 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype = "photoZ_bc03_snorm_fritz_norm_eazy"
 } else {
   fittype <- args[3]
+}
+
+if ((length(args[4]) == 0 | is.na(args[4]))){
+  do_list = FALSE
+}else{
+  do_list = TRUE
+  
+  if (grepl(",", args[4])) {
+    list_idx <- as.integer(strsplit(args[4], ",")[[1]])
+  }else if (grepl(":", args[4])){
+    bounds <- as.integer(strsplit(args[4], ":")[[1]])
+    list_idx <- bounds[1]:bounds[2]
+  }else{
+    stop("Incorrect list usage")
+  }
 }
 
 prospect_dir = paste0(
@@ -86,22 +96,34 @@ index_parallel_job_array = function(INDEX, ncores, N, start_Nindex, end_index){
   return( job_vec ) 
 }
 
-message(
-  paste0("Total number of objects = ", dim(phot_cat$PhotTot)[1])
-)
-
 if(slurm_paralel_job_array){
-  fit_idx = index_parallel_job_array(
-    INDEX = idx, 
-    ncores = ncores, 
-    N = dim(phot_cat$PhotTot)[1], 
-    start_Nindex = 1,
-    end_index = max_slurm_jobs
-  )
-  print(fit_idx)
+  if(do_list){
+    job_idx = index_parallel_job_array(
+      INDEX = idx, 
+      ncores = ncores, 
+      N = length(list_idx), 
+      start_Nindex = 1,
+      end_index = max_slurm_jobs
+    )
+    fit_idx = list_idx[job_idx]
+  }else{
+    fit_idx = index_parallel_job_array(
+      INDEX = idx, 
+      ncores = ncores, 
+      N = dim(phot_cat$PhotTot)[1], 
+      start_Nindex = 1,
+      end_index = max_slurm_jobs
+    )
+  }
 }else{
-  fit_idx = idx
+  if(do_list){
+    fit_idx = list_idx[idx]
+  }else{
+    fit_idx = idx
+  }
 }
+
+print(fit_idx)
 
 plot_spectrum_ribbon <- function(spectrum,
                                  key,

@@ -25,6 +25,8 @@ do_spec = FALSE
 do_robust = TRUE
 redo_fits = FALSE
 
+do_nircam_only = FALSE
+
 min_pc_err = 0.1
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -33,8 +35,6 @@ if (length(args[1]) == 0 | is.na(args[1])) {
 } else if (grepl(":", args[1])) {
   bounds <- as.integer(strsplit(args[1], ":")[[1]])
   idx <- bounds[1]:bounds[2]
-} else if (grepl(",", args[1])) {
-  idx <- as.integer(strsplit(args[1], ",")[[1]])
 }else {
   idx <- as.integer(args[1])
 }
@@ -50,9 +50,34 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype <- args[3]
 }
 
+if ((length(args[4]) == 0 | is.na(args[4]))){
+  do_list = FALSE
+}else{
+  do_list = TRUE
+  
+  if (grepl(",", args[4])) {
+    list_idx <- as.integer(strsplit(args[4], ",")[[1]])
+  }else if (grepl(":", args[4])){
+    bounds <- as.integer(strsplit(args[4], ":")[[1]])
+    list_idx <- bounds[1]:bounds[2]
+  }else{
+    stop("Incorrect list usage")
+  }
+}
+
 if(do_spec){
   save_dir = paste0(
     main_dir, "/data/prospect/", fittype, "_spec/" 
+  )
+}else{
+  save_dir = paste0(
+    main_dir, "/data/prospect/", fittype, "/" 
+  )
+}
+
+if(do_nircam_only){
+  save_dir = paste0(
+    main_dir, "/data/prospect/", fittype, "_nircam/" 
   )
 }else{
   save_dir = paste0(
@@ -109,6 +134,11 @@ do_photoz_bc03_snorm_fritz_norm_eazy = function(kk){
   flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (min_pc_err * flux_data$flux)^2 ) ## put 5pc minimum error
   
   filtout = filter_transforms
+  
+  if(do_nircam_only){
+    flux_data = flux_data[!(grepl("MIRI", filters_info$filter_names)), ]
+    filtout = filtout[!(grepl("MIRI", filters_info$filter_names))]
+  }
   
   zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
   zPDF_load[zPDF_load <= 0] = 1e-100
@@ -245,6 +275,11 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
   
   filtout = filter_transforms
   
+  if(do_nircam_only){
+    flux_data = flux_data[!(grepl("MIRI", filters_info$filter_names)), ]
+    filtout = filtout[!(grepl("MIRI", filters_info$filter_names))]
+  }
+  
   zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
   zPDF_load[zPDF_load <= 0] = 1e-100
   zPDF_func = approxfun(
@@ -284,14 +319,14 @@ do_photoz_bc03_snorm_norm_eazy = function(kk){
     
     speclib = BC03hr,
     Dale = Dale_NormTot,
-    filtout = filter_transforms,
+    filtout = filtout,
     Inoue14_LAFcoef = Inoue14_LAFcoef,
     Inoue14_DLAcoef = Inoue14_DLAcoef,
     
     SFH=SFHfunc,
     Dale_M2L_func = Dale_M2L_func,
     parm.names = c('z', 'mSFR','mpeak','mperiod','mskew','tau_birth','tau_screen','alpha_SF_birth','alpha_SF_screen','Zfinal'), 
-    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst", paste("flux.",filters_info$filters,sep='')),
+    mon.names = c("LP","dustmass.birth", "dustmass.screen", "dustmass.total", "dustlum.birth", "dustlum.screen", "dustlum.total", "SFRburst")),
     logged = c(
       TRUE,
       TRUE, FALSE, TRUE, FALSE,
@@ -366,6 +401,11 @@ do_photoz_bc03_snorm_skirtor_norm_eazy = function(kk){
   flux_data$fluxerr = sqrt( as.numeric(df_flux_err[kk, ])^2 + (min_pc_err * flux_data$flux)^2 ) ## put 5pc minimum error
   
   filtout = filter_transforms
+  
+  if(do_nircam_only){
+    flux_data = flux_data[!(grepl("MIRI", filters_info$filter_names)), ]
+    filtout = filtout[!(grepl("MIRI", filters_info$filter_names))]
+  }
   
   zPDF_load = eazy_zPDFs_normals[[paste0('gal',kk)]]
   zPDF_load[zPDF_load <= 0] = 1e-100
@@ -561,6 +601,15 @@ if(slurm_paralel_job_array){
       end_index = max_slurm_jobs
     )
     fit_idx = redo_ids[job_idx]
+  }else if(do_list){
+    job_idx = index_parallel_job_array(
+      INDEX = idx, 
+      ncores = ncores, 
+      N = length(list_idx), 
+      start_Nindex = 1,
+      end_index = max_slurm_jobs
+    )
+    fit_idx = list_idx[job_idx]
   }else{
     fit_idx = index_parallel_job_array(
       INDEX = idx, 
@@ -577,6 +626,8 @@ if(slurm_paralel_job_array){
     fit_idx = spec_ids[idx]
   }else if(redo_fits){
     fit_idx = redo_ids[idx]
+  }else if(do_list){
+    fit_idx = list_idx[idx]
   }else{
     fit_idx = idx
   }

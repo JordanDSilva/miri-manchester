@@ -30,39 +30,21 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype <- args[3]
 }
 
-if(do_spec){
+if(do_lrd){
   save_dir = paste0(
-    main_dir, "data/prospect/", fittype, "_spec/"
+    main_dir, "data/prospect/", fittype, "_lrd/"
   )
   sed_dir = paste0(
-    main_dir, "data/prospect_seds/", fittype, "_spect/"
+    main_dir, "data/prospect_seds/", fittype, "_lrd/"
   )
-  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_spec_astro_cat.csv")
-}else{
-  save_dir = paste0(
-    main_dir, "data/prospect/", fittype, "/"
-  )
-  sed_dir = paste0(
-    main_dir, "data/prospect_seds/", fittype, "/"
-  )
-  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_astro_cat.csv")
+  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_lrd_astro_cat.csv")
 }
 
 load(
   paste0(main_dir, "/data/prospect_data_for_fitting.rda")
 )
 
-spec_ids = c(
-  2193, 725, 781, 2797, 3870, 3123, 5507, 2269, 1903, 3618, 2294, 2362, 3327, 1342, 1869, 1245, 1733, 1810, 196, 4459, 743, 279, 2074, 2591, 2247, 578, 3356, 3012, 3294, 2535,
-  491, 1445, 971, 681, 3211, 2020, 4503, 2384, 1779, 3679, 1481, 684, 1456, 2214, 1655, 1715, 4488, 2838, 122, 4542, 945, 2342, 2761, 2758, 826, 261, 3281, 912, 1489, 895, 594,
-  1102, 1739, 3380, 372, 5491, 658, 1762, 3014, 746, 600, 1941, 1846, 1095, 629, 1203, 690, 1307, 928, 1186, 30, 1161, 1513, 4950, 919, 1727, 706, 2652, 2357, 1272, 1013, 1116,
-  779, 1309, 2864, 1870, 1276, 291, 4500, 383, 1343, 3742, 716, 1735, 1094, 3246, 3377, 790, 3483, 621, 482, 3612, 2052, 108, 1625, 3198, 23, 2531, 1469, 1601, 2536, 5631, 3825,
-  1544, 4610, 1806, 2932, 1136, 2827, 1145, 251, 191, 1334, 142, 8, 1225, 2199, 1129, 2058, 915, 4561, 541, 1586, 461, 2712, 4844, 2347, 4479, 1809, 2644, 1007, 585, 3401, 2675,
-  2437, 3010, 190, 2683, 1453, 1745, 5219, 2257, 2962, 2843, 2235, 298
-)
-if(do_spec){
-  idx = spec_ids
-}else if(do_lrd){
+if(do_lrd){
   idx = unlist(
      fread(
        paste0(main_dir, "/data/prospect/LRD_colour_selection_IDs.txt")
