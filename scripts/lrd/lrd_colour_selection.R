@@ -204,6 +204,7 @@ fwrite(
   file = "~/Documents/JWST-MIRI-AGN/data/prospect/LRD_colour_selection_IDs.txt", 
 )
 
+sum(prospect_cat[which(lrd_idx), c("FitType")] == "StellarAGN")
 
 for(i in which(lrd_idx)){
   file.copy(

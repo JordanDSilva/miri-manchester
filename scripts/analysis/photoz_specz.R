@@ -90,19 +90,19 @@ h5createGroup(
   file = h5file,
   "photoz"
 )
-# h5delete(h5file, "photoz/photoz")
+h5delete(h5file, "photoz/photoz")
 h5write(
   obj = df,
   file = h5file,
   name = "photoz/photoz"
 )
-# h5delete(h5file, "photoz/eazyPz")
+h5delete(h5file, "photoz/eazyPz")
 h5write(
   obj = as.matrix(agn_blue_sfhz$eazy_zPDFs[, !grepl("V1|zgrid", names(agn_blue_sfhz$eazy_zPDFs))]),
   file = h5file,
   name = "photoz/eazyPz"
 )
-# h5delete(h5file, "photoz/eazyPzNorm")
+h5delete(h5file, "photoz/eazyPzNorm")
 h5write(
   obj = as.matrix(agn_blue_sfhz$eazy_zPDFs_normals[, !grepl("V1|zgrid", names(agn_blue_sfhz$eazy_zPDFs_normals))]),
   file = h5file,

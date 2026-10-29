@@ -38,12 +38,27 @@ uncommon_names = setdiff(names(photoZ_bc03_snorm_fritz_norm_eazy), names(photoZ_
 
 combined_catalogue = photoZ_bc03_snorm_fritz_norm_eazy # start with Stellar+AGN
 
-AGN_UV_ratio = 10^(-0.4 * (photoZ_bc03_snorm_fritz_norm_eazy$UV1500AGNQ50 - photoZ_bc03_snorm_fritz_norm_eazy$UV1500Q50) )
+# AGN_UV_ratio = 10^(-0.4 * (photoZ_bc03_snorm_fritz_norm_eazy$UV1500AGNQ50 - photoZ_bc03_snorm_fritz_norm_eazy$UV1500Q50) )
+AGN_UV_ratio = photoZ_bc03_snorm_fritz_norm_eazy$UV1500_AGN_ratioQ50
 DIC_thresh = 0.0
 deltaDIC = photoZ_bc03_snorm_norm_eazy$DIC - photoZ_bc03_snorm_fritz_norm_eazy$DIC
 
+# sum(
+#   (AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_20_frac_Q50 >= 0.1), na.rm = TRUE
+# )
+# sum(
+#   (AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_1_20_frac_Q50 >= 0.1), na.rm = TRUE
+# )
+# sum(
+#   (AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_frac_Q50 >= 0.1), na.rm = TRUE
+# )
+# sum(
+#   (AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_Dale_frac_Q50 >= 0.1), na.rm = TRUE
+# )
+
 ## Isolate a photometrically selected sample
-replace_AGN_idx = !((AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_Dale_fracQ50 >= 0.1))
+replace_AGN_idx = !((AGN_UV_ratio >= 0.01) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50 >= 0.01))
+# replace_AGN_idx = !(deltaDIC > DIC_thresh)
 
 combined_catalogue[which(replace_AGN_idx), common_names] = photoZ_bc03_snorm_norm_eazy[which(replace_AGN_idx), common_names] # now set better fit to Stellar
 combined_catalogue[which(replace_AGN_idx), uncommon_names] = NA # set the AGN crap to NA

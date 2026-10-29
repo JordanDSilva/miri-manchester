@@ -63,11 +63,11 @@ sing_pl = function(x, parm){
 }
 
 PGF = function(Data){
-  M0    = rnorm(1, 7, 0.5)
+  M0    = rnorm(1, 7, 1.0)
   alpha = rnorm(1, 1, 0.3)
   log_delta = rnorm(1, log(0.5), 0.5)
   # delta = rgamma(1, shape = 2, rate = 2)   # ensures positivity
-  S0    = rnorm(1, 1, 0.3)
+  S0    = rnorm(1, 1, 0.5)
   xtrue = rnorm(Data$N, Data$x_obs, Data$xerr)
   return(c(M0, alpha, log_delta, S0, xtrue))
 }
@@ -83,31 +83,16 @@ Model = function(parm, Data){
   delta = exp(log_delta)
   beta = alpha - delta
   
-  # if (alpha <= beta){
-  #   return(list(LP = -Inf, Dev = Inf, Monitor = c(-Inf, M0, alpha, beta, S0),
-  #               yhat = rep(NA, Data$N), parm = parm))
-  # }
-  
   # --- Priors on model parameters ---
-  M0.prior    = dnorm(M0,    7, 2, log = TRUE)
-  alpha.prior = dnorm(alpha, 1, 2, log = TRUE)
-  log_delta.prior = dnorm(log_delta, log(0.5), 1, log = TRUE)
-  # delta.prior = dgamma(delta, shape = 2, rate = 2, log = TRUE)  # keeps delta > 0
-  # beta.prior  = dnorm(beta,  1, 2, log = TRUE)
-  S0.prior    = dnorm(S0,    1, 2, log = TRUE)
+  M0.prior        = dnorm(M0,        7,  3, log = TRUE)
+  alpha.prior     = dnorm(alpha,     1.0, 2.0, log = TRUE)
+  log_delta.prior = dnorm(log_delta, 0,   1,  log = TRUE) # always positive
+  S0.prior        = dnorm(S0,        2,  3, log = TRUE)
   
   # --- Model prediction at xtrue ---
   y_model = dbl_pl(xtrue, c(M0, alpha, beta, S0))
   
   # --- 2D Gaussian likelihood per point ---
-  # LL = 0
-  # for (j in seq_len(Data$N)){
-  #   obs_vec   = c(Data$x_obs[j], Data$y_obs[j])
-  #   model_vec = c(xtrue[j],      y_model[j])
-  #   Sigma_j   = Data$covarray[, , j]
-  #   
-  #   LL = LL + dmvnorm(obs_vec, mean = model_vec, sigma = Sigma_j, log = TRUE)
-  # }
   # --- Extract covariance components as vectors (length N) ---
   sx2 = Data$covarray[1, 1, ]   # xerr^2 per point
   sy2 = Data$covarray[2, 2, ]   # yerr^2 per point
@@ -124,6 +109,60 @@ Model = function(parm, Data){
   LL_vec = -log(2 * pi) - 0.5 * log(det_Sigma) - 0.5 * quadform
   
   LL = sum(LL_vec)
+  
+  LP = LL + M0.prior + alpha.prior + log_delta.prior + S0.prior
+  # LP = LL
+  
+  Modelout = list(
+    LP = LP,
+    Dev = -2 * LL,
+    Monitor = c(LP, M0, alpha, beta, delta, S0),
+    yhat = y_model,
+    parm = parm
+  )
+  return(Modelout)
+}
+
+Model_UL = function(parm, Data){
+  
+  M0        = parm[1]
+  alpha     = parm[2]
+  log_delta = parm[3]
+  S0        = parm[4]
+  xtrue     = parm[5:(4 + Data$N)]
+  
+  delta = exp(log_delta)
+  beta  = alpha - delta
+  
+  # --- Priors on model parameters ---
+  M0.prior        = dnorm(M0,        7,   3,   log = TRUE)
+  alpha.prior     = dnorm(alpha,     1.0, 2.0, log = TRUE)
+  log_delta.prior = dnorm(log_delta, 0,   1,   log = TRUE)
+  S0.prior        = dnorm(S0,        2,   3,   log = TRUE)
+  
+  # --- Model prediction at xtrue ---
+  y_model = dbl_pl(xtrue, c(M0, alpha, beta, S0))
+  
+  sx2 = Data$covarray[1, 1, ]
+  sy2 = Data$covarray[2, 2, ]
+  sxy = Data$covarray[1, 2, ]
+  
+  dx = Data$x_obs - xtrue
+  dy = Data$y_obs - y_model       # for flagged rows y_obs holds the upper limit
+  
+  # --- Detections: bivariate normal density (as before) ---
+  det_Sigma = sx2 * sy2 - sxy^2
+  quadform  = (dx^2 * sy2 - 2 * dx * dy * sxy + dy^2 * sx2) / det_Sigma
+  LL_det    = -log(2 * pi) - 0.5 * log(det_Sigma) - 0.5 * quadform
+  
+  # --- Upper limits: N(dx; 0, sx2) * P(e_y < dy | e_x = dx) ---
+  mu_cond = (sxy / sx2) * dx
+  sd_cond = sqrt(sy2 - sxy^2 / sx2)
+  LL_ul   = dnorm(dx, 0, sqrt(sx2), log = TRUE) +
+    pnorm(dy, mean = mu_cond, sd = sd_cond, lower.tail = TRUE, log.p = TRUE)
+  
+  LL_vec = ifelse(Data$upper_limits, LL_ul, LL_det)
+  LL     = sum(LL_vec)
   
   LP = LL + M0.prior + alpha.prior + log_delta.prior + S0.prior
   
@@ -187,7 +226,8 @@ for(i in 1:length(zmids)){
   xerr = (log10(prospect_sample$StellarMassQ84[zidx]) - log10(prospect_sample$StellarMassQ16[zidx])) * 0.5
   yerr = (log10(BHARSFR_df_sample$BHARSFR10Q84[zidx]) - log10(BHARSFR_df_sample$BHARSFR10Q16[zidx])) * 0.5
   
-  AGN_idx = prospect_sample$AGNlumQ50[zidx] > 1e0
+  # up_lims = prospect_sample$StellarMassQ50[zidx]/mean(c(prospect_sample$StellarMass_lo[zidx],prospect_sample$StellarMass_hi[zidx])) < 3
+  AGN_idx = prospect_sample$StellarMassQ50[zidx] > 0
 
   N = length(which(AGN_idx))
   
@@ -218,21 +258,12 @@ for(i in 1:length(zmids)){
     covarray[, , j] = cov(cbind(x[ok], y[ok]))
   }
   
-  # 
-  # covarray = array(0, dim = c(2, 2, N))
-  # for (j in seq_len(N)){
-  #   covarray[, , j] = matrix(
-  #     c(xerr[j]^2, 0,
-  #       0, yerr[j]^2),
-  #     nrow = 2
-  #   )
-  # }
-  
   Data = list(
     x_obs = x_obs[AGN_idx],
     y_obs = y_obs[AGN_idx],
-    xerr  = xerr,
-    yerr  = yerr,
+    xerr  = xerr[AGN_idx],
+    yerr  = yerr[AGN_idx],
+    # upper_limits = up_lims[AGN_idx],
     N     = N,
     covarray = covarray,
     # mon.names  = c("LP", "M0", "alpha", "beta", "S0"),
@@ -244,6 +275,7 @@ for(i in 1:length(zmids)){
   
   Initial.Values = PGF(Data)
   
+
   Fit = LaplacesDemon(
     Model = Model,
     Data  = Data,
@@ -311,6 +343,8 @@ for(i in 1:length(zmids)){
     ylab = "log10(BHAR/SFR)"
   )
   points(
+    # log10(prospect_sample$StellarMassQ50[zidx][AGN_idx & !up_lims]),
+    # log10(BHARSFR_df_sample$BHARSFR10Q50[zidx][AGN_idx & !up_lims]),
     log10(prospect_sample$StellarMassQ50[zidx][AGN_idx]),
     log10(BHARSFR_df_sample$BHARSFR10Q50[zidx][AGN_idx]),
     pch = 16,
@@ -368,41 +402,41 @@ for(i in 1:length(zmids)){
   )
 }
 
-df_fit = df_fit[!sapply(df_fit, is.null)]
-df_cat = data.frame(do.call(
-  rbind, lapply(df_fit, function(x)x$df)
-))
-saveRDS(
-  df_fit,
-  "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds"
-)
-
-fwrite(
-  df_cat, 
-  "~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"
-)
-
-df_fit = readRDS("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds")
-df_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
-
-h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
-# Create the file if it doesn't exist yet; otherwise we append into it
-if (!file.exists(h5file)) {
-  h5createFile(h5file)
-}
-
-h5ls(h5file)
-if (any(h5ls(h5file)$name == "SFRBHAR")) {
-  h5delete(h5file, "SFRBHAR")
-}
-# h5delete(h5file, "SFRBHAR")
-h5createGroup(h5file, "SFRBHAR")
-h5write(df_cat, file = h5file, name = paste0("SFRBHAR/Params"))
-h5createGroup(h5file, "SFRBHAR/fits")
-for(i in 1:length(df_fit)){
-  h5write(
-    data.frame(df_fit[[i]]$fit), 
-    file = h5file, 
-    name = paste0("SFRBHAR/fits/", i)
-  )
-}
+# df_fit = df_fit[!sapply(df_fit, is.null)]
+# df_cat = data.frame(do.call(
+#   rbind, lapply(df_fit, function(x)x$df)
+# ))
+# saveRDS(
+#   df_fit,
+#   "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds"
+# )
+# 
+# fwrite(
+#   df_cat, 
+#   "~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"
+# )
+# 
+# df_fit = readRDS("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds")
+# df_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
+# 
+# h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
+# # Create the file if it doesn't exist yet; otherwise we append into it
+# if (!file.exists(h5file)) {
+#   h5createFile(h5file)
+# }
+# 
+# h5ls(h5file)
+# if (any(h5ls(h5file)$name == "SFRBHAR")) {
+#   h5delete(h5file, "SFRBHAR")
+# }
+# # h5delete(h5file, "SFRBHAR")
+# h5createGroup(h5file, "SFRBHAR")
+# h5write(df_cat, file = h5file, name = paste0("SFRBHAR/Params"))
+# h5createGroup(h5file, "SFRBHAR/fits")
+# for(i in 1:length(df_fit)){
+#   h5write(
+#     data.frame(df_fit[[i]]$fit), 
+#     file = h5file, 
+#     name = paste0("SFRBHAR/fits/", i)
+#   )
+# }

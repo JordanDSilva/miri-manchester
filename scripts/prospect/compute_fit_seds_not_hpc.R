@@ -2,20 +2,29 @@ library(ProSpect)
 library(matrixStats)
 library(foreach)
 library(doParallel)
+library(data.table)
+library(magicaxis)
 
 ncores = 1 
-max_slurm_jobs = 84 # should be the maximum of your job array
+max_slurm_jobs = 32 # should be the maximum of your job array
 slurm_paralel_job_array = TRUE
+do_lrd = TRUE
+overwrite = TRUE
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args[1]) == 0 | is.na(args[1])) {
   idx <- 1
+} else if (grepl(":", args[1])) {
+  bounds <- as.integer(strsplit(args[1], ":")[[1]])
+  idx <- bounds[1]:bounds[2]
+} else if (grepl(",", args[1])) {
+  idx <- as.integer(strsplit(args[1], ",")[[1]])
 }else {
   idx <- as.integer(args[1])
 }
 
 if (length(args[2]) == 0 | is.na(args[2])) {
-  main_dir = "~/Documents/Epochs/"
+  main_dir = "~/mnt/csf3/"
 } else {
   main_dir <- args[2]
 }
@@ -23,21 +32,6 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype = "photoZ_bc03_snorm_fritz_norm_eazy"
 } else {
   fittype <- args[3]
-}
-
-if ((length(args[4]) == 0 | is.na(args[4]))){
-  do_list = FALSE
-}else{
-  do_list = TRUE
-  
-  if (grepl(",", args[4])) {
-    list_idx <- as.integer(strsplit(args[4], ",")[[1]])
-  }else if (grepl(":", args[4])){
-    bounds <- as.integer(strsplit(args[4], ":")[[1]])
-    list_idx <- bounds[1]:bounds[2]
-  }else{
-    stop("Incorrect list usage")
-  }
 }
 
 prospect_dir = paste0(
@@ -96,34 +90,44 @@ index_parallel_job_array = function(INDEX, ncores, N, start_Nindex, end_index){
   return( job_vec ) 
 }
 
+message(
+  paste0("Total number of objects = ", dim(phot_cat$PhotTot)[1])
+)
+
+if(do_lrd){
+  lrd_ids = unlist(
+    fread(
+      paste0(main_dir, "/data/LRD_colour_selection_IDs.txt")
+    )
+  )
+}
+
 if(slurm_paralel_job_array){
-  if(do_list){
+  if(do_lrd){
     job_idx = index_parallel_job_array(
       INDEX = idx, 
       ncores = ncores, 
-      N = length(list_idx), 
+      N = length(lrd_ids), 
       start_Nindex = 1,
       end_index = max_slurm_jobs
     )
-    fit_idx = list_idx[job_idx]
+    fit_idx = lrd_ids[job_idx]
   }else{
     fit_idx = index_parallel_job_array(
       INDEX = idx, 
       ncores = ncores, 
-      N = dim(phot_cat$PhotTot)[1], 
+      N = dim(phot_cat$ProFound)[1], 
       start_Nindex = 1,
       end_index = max_slurm_jobs
     )
   }
 }else{
-  if(do_list){
-    fit_idx = list_idx[idx]
+  if(do_lrd){
+    fit_idx = lrd_ids[idx]
   }else{
     fit_idx = idx
   }
 }
-
-print(fit_idx)
 
 plot_spectrum_ribbon <- function(spectrum,
                                  key,
@@ -303,8 +307,7 @@ for(i in fit_idx){
     save_dir, "galID_", i, ".rds"
   )
   
-  if(file.exists(file_stub) & !file.exists(save_stub)){
-
+  if (file.exists(file_stub) & (!file.exists(save_stub) | overwrite)) {
     out = readRDS(file_stub)
     
     post = out$post
@@ -313,7 +316,11 @@ for(i in fit_idx){
     Data$speclib = BC03hr
     
     if(!is.null(out$bestfit$SEDout$AGN)){
-      Data$AGN = Fritz
+      if(grepl("MBB", fittype)){
+        Data$AGN = LRDBBSKIRTOR
+      }else{
+        Data$AGN = Fritz
+      }
     }else{
       Data$AGN = NULL
     }
@@ -342,11 +349,26 @@ for(i in fit_idx){
           z = 10^out_sample$parm[1], 
           ref = "737"
         )
+        
         AGN_Dale_frac = sum( out_sample$SEDout$AGN$lum[out_sample$SEDout$AGN$wave >= 5e4 & out_sample$SEDout$AGN$wave <= 20e4] * c(0, diff(out_sample$SEDout$AGN$wave[out_sample$SEDout$AGN$wave >= 5e4 & out_sample$SEDout$AGN$wave <= 20e4])) ) / 
           sum( out_sample$SEDout$FinalLum$lum[out_sample$SEDout$FinalLum$wave >= 5e4 & out_sample$SEDout$FinalLum$wave <= 20e4] * c(0, diff(out_sample$SEDout$FinalLum$wave[out_sample$SEDout$FinalLum$wave >= 5e4 & out_sample$SEDout$FinalLum$wave <= 20e4])) )
+        # standard from Dale+14
+        
+        AGN_1_20_frac = sum( out_sample$SEDout$AGN$lum[out_sample$SEDout$AGN$wave >= 1e4 & out_sample$SEDout$AGN$wave <= 20e4] * c(0, diff(out_sample$SEDout$AGN$wave[out_sample$SEDout$AGN$wave >= 1e4 & out_sample$SEDout$AGN$wave <= 20e4])) ) / 
+          sum( out_sample$SEDout$FinalLum$lum[out_sample$SEDout$FinalLum$wave >= 1e4 & out_sample$SEDout$FinalLum$wave <= 20e4] * c(0, diff(out_sample$SEDout$FinalLum$wave[out_sample$SEDout$FinalLum$wave >= 1e4 & out_sample$SEDout$FinalLum$wave <= 20e4])) )
+        
+        AGN_3_20_frac = sum( out_sample$SEDout$AGN$lum[out_sample$SEDout$AGN$wave >= 3e4 & out_sample$SEDout$AGN$wave <= 20e4] * c(0, diff(out_sample$SEDout$AGN$wave[out_sample$SEDout$AGN$wave >= 3e4 & out_sample$SEDout$AGN$wave <= 20e4])) ) / 
+          sum( out_sample$SEDout$FinalLum$lum[out_sample$SEDout$FinalLum$wave >= 3e4 & out_sample$SEDout$FinalLum$wave <= 20e4] * c(0, diff(out_sample$SEDout$FinalLum$wave[out_sample$SEDout$FinalLum$wave >= 3e4 & out_sample$SEDout$FinalLum$wave <= 20e4])) )
+        
+        AGN_20_frac = sum( out_sample$SEDout$AGN$lum[out_sample$SEDout$AGN$wave <= 20e4] * c(0, diff(out_sample$SEDout$AGN$wave[out_sample$SEDout$AGN$wave <= 20e4])) ) / 
+          sum( out_sample$SEDout$FinalLum$lum[out_sample$SEDout$FinalLum$wave <= 20e4] * c(0, diff(out_sample$SEDout$FinalLum$wave[out_sample$SEDout$FinalLum$wave <= 20e4])) )
+        
       }else{
         photom_AGN_source = rep(0, length(filter_transforms))
         AGN_Dale_frac = 0
+        AGN_1_20_frac = 0
+        AGN_3_20_frac = 0
+        AGN_20_frac = 0
       }
       
       photom_all_source = photom_lum(
@@ -361,10 +383,10 @@ for(i in fit_idx){
       photom_all = photom_all_source * Inoue14_IGM(wave = filters_info$cenwave, z = 10^out_sample$parm[1], Inoue14_LAFcoef = Inoue14_LAFcoef, Inoue14_DLAcoef = Inoue14_DLAcoef)
       photom_AGN = photom_AGN_source *  Inoue14_IGM(wave = filters_info$cenwave, z = 10^out_sample$parm[1], Inoue14_LAFcoef = Inoue14_LAFcoef, Inoue14_DLAcoef = Inoue14_DLAcoef)
       
-      names(photom_AGN) = paste0(filters_info$filter_names, "_fit_AGN")
-      names(photom_all) = paste0(filters_info$filter_names, "_fit")
-      names(photom_AGN_source) = paste0(filters_info$filter_names, "_source_fit_AGN")
-      names(photom_all_source) = paste0(filters_info$filter_names, "_source_fit")
+      names(photom_AGN) = paste0(filters_info$filters, "_fit_AGN_flux")
+      names(photom_all) = paste0(filters_info$filters, "_fit_flux")
+      names(photom_AGN_source) = paste0(filters_info$filters, "_source_fit_AGN_flux")
+      names(photom_all_source) = paste0(filters_info$filters, "_source_fit_flux")
       
       list(
         "rest" = out_sample$SEDout$FinalLum$lum,
@@ -381,7 +403,10 @@ for(i in fit_idx){
           photom_AGN,
           photom_all_source,
           photom_AGN_source,
-          "AGN_Dale_frac" = AGN_Dale_frac
+          "AGN_1_20_frac" = AGN_1_20_frac,
+          "AGN_3_20_frac" = AGN_3_20_frac,
+          "AGN_Dale_frac" = AGN_Dale_frac,
+          "AGN_20_frac" = AGN_20_frac
         )
       )
     }
@@ -400,11 +425,11 @@ for(i in fit_idx){
     Q05_phot = colQuantiles(as.matrix(phot_samples), probs = 0.05)
     Q95_phot = colQuantiles(as.matrix(phot_samples), probs = 0.95)
     
-    names(med_phot) = paste0(names(med_phot), "_Q50")
-    names(Q16_phot) = paste0(names(Q16_phot), "_Q16")
-    names(Q84_phot) = paste0(names(Q84_phot), "_Q84")
-    names(Q05_phot) = paste0(names(Q05_phot), "_Q05")
-    names(Q95_phot) = paste0(names(Q95_phot), "_Q95")
+    names(med_phot) = paste0(names(med_phot), "Q50")
+    names(Q16_phot) = paste0(names(Q16_phot), "Q16")
+    names(Q84_phot) = paste0(names(Q84_phot), "Q84")
+    names(Q05_phot) = paste0(names(Q05_phot), "Q05")
+    names(Q95_phot) = paste0(names(Q95_phot), "Q95")
     
     row_phot <- c(ID = as.integer(i), med_phot, Q16_phot, Q84_phot, Q05_phot, Q95_phot)
     
@@ -430,7 +455,7 @@ for(i in fit_idx){
     # fitted photom
     spectrum$phot = row_phot
     spectrum$phot_post = phot_samples
-
+    
     # rest frame total
     spectrum$restWave     = out$bestfit$SEDout$FinalLum$wave
     spectrum$lumQ50       = colMedians(as.matrix(rest_samples), na.rm = TRUE)
@@ -438,7 +463,7 @@ for(i in fit_idx){
     spectrum$lumQ84       = colQuantiles(as.matrix(rest_samples), probs = 0.84, na.rm = TRUE)
     spectrum$lumQ05       = colQuantiles(as.matrix(rest_samples), probs = 0.05, na.rm = TRUE)
     spectrum$lumQ95       = colQuantiles(as.matrix(rest_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # unattenuated stars
     spectrum$StarsUnAttenWave = out$bestfit$SEDout$StarsUnAtten$wave
     spectrum$StarsUnAttenQ50 = colMedians(as.matrix(StarsUnAtten_samples), na.rm = TRUE)
@@ -446,7 +471,7 @@ for(i in fit_idx){
     spectrum$StarsUnAttenQ84 = colQuantiles(as.matrix(StarsUnAtten_samples), probs = 0.84, na.rm = TRUE)
     spectrum$StarsUnAttenQ05 = colQuantiles(as.matrix(StarsUnAtten_samples), probs = 0.05, na.rm = TRUE)
     spectrum$StarsUnAttenQ95 = colQuantiles(as.matrix(StarsUnAtten_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # attenuated stars
     spectrum$StarsAttenWave = out$bestfit$SEDout$StarsAtten$wave
     spectrum$StarsAttenQ50   = colMedians(as.matrix(StarsAtten_samples), na.rm = TRUE)
@@ -454,7 +479,7 @@ for(i in fit_idx){
     spectrum$StarsAttenQ84   = colQuantiles(as.matrix(StarsAtten_samples), probs = 0.84, na.rm = TRUE)
     spectrum$StarsAttenQ05   = colQuantiles(as.matrix(StarsAtten_samples), probs = 0.05, na.rm = TRUE)
     spectrum$StarsAttenQ95   = colQuantiles(as.matrix(StarsAtten_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # dust emission
     spectrum$DustWave = out$bestfit$SEDout$DustEmit$wave
     spectrum$DustEmitQ50     = colMedians(as.matrix(DustEmit_samples), na.rm = TRUE)
@@ -462,7 +487,7 @@ for(i in fit_idx){
     spectrum$DustEmitQ84     = colQuantiles(as.matrix(DustEmit_samples), probs = 0.84, na.rm = TRUE)
     spectrum$DustEmitQ05     = colQuantiles(as.matrix(DustEmit_samples), probs = 0.05, na.rm = TRUE)
     spectrum$DustEmitQ95     = colQuantiles(as.matrix(DustEmit_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # AGN
     if(!is.null(out$bestfit$SEDout$AGN)){
       spectrum$AGNWave = out$bestfit$SEDout$AGN$wave
@@ -479,7 +504,7 @@ for(i in fit_idx){
       spectrum$AGNQ05 = rep(1e-99, 10)
       spectrum$AGNQ95 = rep(1e-99, 10)
     }
-
+    
     # observed frame flux
     spectrum$obswave         = out$bestfit$SEDout$FinalFlux$wave
     spectrum$fluxQ50         = colMedians(as.matrix(obs_samples), na.rm = TRUE)
@@ -487,7 +512,7 @@ for(i in fit_idx){
     spectrum$fluxQ84         = colQuantiles(as.matrix(obs_samples), probs = 0.84, na.rm = TRUE)
     spectrum$fluxQ05         = colQuantiles(as.matrix(obs_samples), probs = 0.05, na.rm = TRUE)
     spectrum$fluxQ95         = colQuantiles(as.matrix(obs_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # observed frame flux
     spectrum$obswave         = out$bestfit$SEDout$FinalFlux$wave
     spectrum$fluxQ50         = colMedians(as.matrix(obs_samples), na.rm = TRUE)
@@ -495,51 +520,119 @@ for(i in fit_idx){
     spectrum$fluxQ84         = colQuantiles(as.matrix(obs_samples), probs = 0.84, na.rm = TRUE)
     spectrum$fluxQ05         = colQuantiles(as.matrix(obs_samples), probs = 0.05, na.rm = TRUE)
     spectrum$fluxQ95         = colQuantiles(as.matrix(obs_samples), probs = 0.95, na.rm = TRUE)
-
+    
     # observed frame flux
     spectrum$ageQ50         = colMedians(as.matrix(agevec_samples), na.rm = TRUE)
     spectrum$ageQ16         = colQuantiles(as.matrix(agevec_samples), probs = 0.16, na.rm = TRUE)
     spectrum$ageQ84         = colQuantiles(as.matrix(agevec_samples), probs = 0.84, na.rm = TRUE)
     spectrum$ageQ05         = colQuantiles(as.matrix(agevec_samples), probs = 0.05, na.rm = TRUE)
     spectrum$ageQ95         = colQuantiles(as.matrix(agevec_samples), probs = 0.95, na.rm = TRUE)
-
+    
     spectrum$SFHQ50         = colMedians(as.matrix(sfhvec_samples), na.rm = TRUE)
     spectrum$SFHQ16         = colQuantiles(as.matrix(sfhvec_samples), probs = 0.16, na.rm = TRUE)
     spectrum$SFHQ84         = colQuantiles(as.matrix(sfhvec_samples), probs = 0.84, na.rm = TRUE)
     spectrum$SFHQ05         = colQuantiles(as.matrix(sfhvec_samples), probs = 0.05, na.rm = TRUE)
     spectrum$SFHQ95         = colQuantiles(as.matrix(sfhvec_samples), probs = 0.95, na.rm = TRUE)
-
+    
     spectrum$ZHQ50         = colMedians(as.matrix(Zvec_samples), na.rm = TRUE)
     spectrum$ZHQ16         = colQuantiles(as.matrix(Zvec_samples), probs = 0.16, na.rm = TRUE)
     spectrum$ZHQ84         = colQuantiles(as.matrix(Zvec_samples), probs = 0.84, na.rm = TRUE)
     spectrum$ZHQ05         = colQuantiles(as.matrix(Zvec_samples), probs = 0.05, na.rm = TRUE)
     spectrum$ZHQ95         = colQuantiles(as.matrix(Zvec_samples), probs = 0.95, na.rm = TRUE)
-
-    # spectrum$fullpost = list(
-    #   "rest_samples"          = rest_samples,
-    #   "StarsUnAtten_samples"  = StarsUnAtten_samples,
-    #   "StarsAtten_samples"    = StarsAtten_samples,
-    #   "DustEmit_samples"      = DustEmit_samples,
-    #   "AGN_samples"           = AGN_samples,
-    #   "obs_samples"           = obs_samples,
-    #   "agevec_samples"        = agevec_samples,
-    #   "sfhvec_samples"        = sfhvec_samples,
-    #   "Zvec_samples"          = Zvec_samples
-    # )
-
+    
     pdf(
       file = paste0(dirname(save_stub), "/plot_", i, ".pdf"), 
       width = 10, 
-      height = 10
+      height = 12,
+      pointsize = 16
     )
-    par(mfrow = c(2,1), mar = c(4.5, 4.5, 4.5, 4.5), oma = c(3.5, 3.5, 0.5, 0.5))
+    par(
+      mfrow = c(3,1), 
+      mar = c(3.5, 3.5, 1.0, 3.5),   # bottom, left, top, right — trimmed top/right, kept left for y-labels
+      oma = c(2.5, 2.5, 1.0, 2.5),   # shared bottom margin for a common x-axis label across all 3 panels
+      cex = 1.1,                      # dialed back from 2.0 -- try this first
+      cex.axis = 1.1,
+      cex.lab = 1.1,
+      lwd = 2,
+      mgp = c(2.2, 0.7, 0)            # pulls axis title/labels/ticks closer to the plot
+    )
+    obs_xlo = min(Data$flux$cenwave) - 100
+    obs_xhi = max(Data$flux$cenwave) + 1000
+    obs_ylo = min(pmax(1e-10, Data$flux$flux - 3*Data$flux$fluxerr, na.rm = TRUE)) * 0.5
+    obs_yup = max(Data$flux$flux + 3*Data$flux$fluxerr, na.rm = TRUE) * 2.5
+    
+    plot_spectrum_ribbon(
+      spectrum = spectrum, key = "flux", xvar = "obswave", xlim = c(obs_xlo, obs_xhi), ylim = c(obs_ylo, obs_yup), xlab = "Wavelength [micron]", ylab = "Flux [Jy]"
+    )
+    for(index in 1:length(Data$flux$cenwave)){
+      x = Data$flux$cenwave[index]
+      
+      q50 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_fluxQ50")])
+      q16 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_fluxQ16")])
+      q84 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_fluxQ84")])
+      
+      polygon(
+        c(x-1e3, x-1e3, x+1e3, x+1e3),
+        c(q16, q84, q84, q16),
+        col    = adjustcolor(col = "forestgreen", 0.4),
+        border = NA
+      )
+      points(
+        x, q50, col = "forestgreen", pch = 16
+      )
+      
+      q50 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_AGN_fluxQ50")])
+      q16 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_AGN_fluxQ16")])
+      q84 = as.numeric(row_phot[paste0(Data$flux$filter[index], "_fit_AGN_fluxQ84")])
+      
+      polygon(
+        c(x-1e3, x-1e3, x+1e3, x+1e3),
+        c(q16, q84, q84, q16),
+        col    = adjustcolor(col = "magenta", 0.4),
+        border = NA
+      )
+      points(
+        x, q50, col = "magenta", pch = 16
+      )
+    }
+    points(
+      Data$flux$cenwave,
+      Data$flux$flux,
+      col = "black",
+      pch = 1
+    )
+    magerr(
+      Data$flux$cenwave,
+      Data$flux$flux,
+      ylo = Data$flux$fluxerr, 
+      col = "black"
+    )
+    legend(
+      x = "bottomright",
+      c(
+        paste0("z = ", round(out$astro$zQ50, 3)), 
+        paste0("RA = ", round(out$galInfo$RAmax, 5)), 
+        paste0("Dec = ", round(out$galInfo$Decmax, 5)), 
+        "Data",
+        "Fit",
+        "Fit photom",
+        "Fit AGN photom"
+      ),
+      pch = c(NA, NA, NA, 1, NA, 16, 16),
+      lty = c(NA, NA, NA, NA, 1, NA, NA),
+      lwd = c(NA, NA, NA, NA, 5, NA, NA),
+      col = c(NA, NA, NA, "black", "grey", "forestgreen", "magenta"),
+      cex = 0.5
+    )
+    
     plot_spectrum_ribbon(spectrum, key = "StarsUnAtten", xvar = "StarsUnAttenWave", col = "blue", xlim = c(10, 1e7))
     plot_spectrum_ribbon(spectrum, key = "StarsAtten", xvar = "StarsUnAttenWave", col = "cornflowerblue", add = TRUE)
     plot_spectrum_ribbon(spectrum, key = "AGN", xvar = "AGNWave", col = "purple", add = TRUE)
     plot_spectrum_ribbon(spectrum, key = "DustEmit", xvar = "DustWave", col = "brown", add = TRUE)
     plot_spectrum_ribbon(spectrum, key = "lum", xvar = "restWave", col = "black", add = TRUE, alpha = 0.2)
-    plot_sfh_zh(spectrum, key = "SFH", xvar = "ageQ50", col = "blue", ylab = "SFR")
-    plot_sfh_zh(spectrum, key = "ZH", xvar = "ageQ50", col = "red", ylab2 = "Z", add = TRUE)
+    
+    plot_sfh_zh(spectrum, key = "SFH", xvar = "ageQ50", col = "blue", ylab = "SFR [Msun yr^-1]", xlab = "Lookback time since observation [Gyr]", log = "x")
+    plot_sfh_zh(spectrum, key = "ZH", xvar = "ageQ50", col = "red", ylab2 = "Z [mass fraction]", add = TRUE, log = "x")
     dev.off()
     
     dir.create(

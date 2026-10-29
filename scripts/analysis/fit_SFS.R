@@ -16,7 +16,7 @@ library(matrixStats)
 library(LaplacesDemon)
 library(mvtnorm)  # for dmvnorm
 
-prospect_cat = data.frame(fread("~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
 
 lbt_bins = seq(8.0, 13.0, 0.5)
 zbins = approx(
@@ -112,7 +112,7 @@ x_grid = seq(-15, 15, 0.01)
 df_fit = list()
 for(i in 1:length(zmids)){
   
-  zidx = prospect_sample$zQ50 >= zbins[i] & prospect_sample$zQ50 < zbins[i + 1] 
+  zidx = prospect_sample$zQ50 >= zbins[i] & prospect_sample$zQ50 < zbins[i + 1] & log10(prospect_sample$StellarMassQ50 > 1e8)
   
   # --- Data ---
   x_obs = log10(prospect_sample$StellarMassQ50[zidx])
@@ -126,14 +126,14 @@ for(i in 1:length(zmids)){
   covarray = array(0, dim = c(2, 2, N))
   for (j in 1:N){
     read_stub = paste0(
-      "~/Documents/Epochs/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/",
+      "~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy/",
       "/galID_", prospect_sample$CATID[zidx][j], ".rds"
     )
     read_data = readRDS(read_stub)
-    post = read_data$post[, c("StellarMass", "SFR10")]
+    post = read_data$post[, c("StellarMass", "SFR100")]
     
     x = as.numeric(log10(post[, "StellarMass"]))
-    y = as.numeric(log10(post[, "SFR10"]))
+    y = as.numeric(log10(post[, "SFR100"]))
     
     ok = is.finite(x) & is.finite(y)
     
@@ -213,7 +213,7 @@ for(i in 1:length(zmids)){
   # --- Base plot ---
   pdf(
     paste0(
-      "~/Documents/Epochs/plots/rough-plots/fit_sfs/z", i, ".pdf"
+      "~/Documents/JWST-MIRI-AGN/plots/rough-plots/fit_sfs/z", i, ".pdf"
     ),
     width = 8,
     height = 6
