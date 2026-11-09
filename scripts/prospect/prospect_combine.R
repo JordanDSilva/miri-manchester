@@ -57,7 +57,7 @@ deltaDIC = photoZ_bc03_snorm_norm_eazy$DIC - photoZ_bc03_snorm_fritz_norm_eazy$D
 # )
 
 ## Isolate a photometrically selected sample
-replace_AGN_idx = !((AGN_UV_ratio >= 0.01) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50 >= 0.01))
+replace_AGN_idx = !((AGN_UV_ratio >= 0.1) | (photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50 >= 0.1))
 # replace_AGN_idx = !(deltaDIC > DIC_thresh)
 
 combined_catalogue[which(replace_AGN_idx), common_names] = photoZ_bc03_snorm_norm_eazy[which(replace_AGN_idx), common_names] # now set better fit to Stellar

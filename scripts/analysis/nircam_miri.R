@@ -15,7 +15,7 @@ nircam_noagn = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_
 # )
 
 magplot(
-  prospect_agn$AGN_Dale_frac_Q50[spec_match_agn_idx],
+  prospect_agn$AGN_Dale_fracQ50[spec_match_agn_idx],
   nircam_agn$AGN_Dale_frac_Q50,
   xlab = "HST+NIRCam+MIRI AGN fractional contribution to the SED",
   ylab = "HST+NIRCam AGN fractional contribution to the SED",
@@ -72,6 +72,53 @@ print(
   )
 )
 
+magplot(
+  prospect_agn$DustMassTotalQ50[spec_match_agn_idx],
+  nircam_agn$DustMassTotalQ50,
+  xlab = "HST+NIRCam+MIRI SFR",
+  ylab = "HST+NIRCam SFR",
+  xlim = c(1e1, 1e10),
+  ylim = c(1e1, 1e10),
+  log = "xy"
+)
+magerr(
+  prospect_agn$DustMassTotalQ50[spec_match_agn_idx],
+  nircam_agn$DustMassTotalQ50,
+  xlo = prospect_agn$DustMassTotal_lo[spec_match_agn_idx],
+  xhi = prospect_agn$DustMassTotal_hi[spec_match_agn_idx],
+  ylo = nircam_agn$DustMassTotal_lo,
+  yhi = nircam_agn$DustMassTotal_hi,
+)
+abline(0,1)
+print(]]
+  median(
+    log10(nircam_agn$DustMassTotalQ50/prospect_agn$DustMassTotalQ50[spec_match_agn_idx])
+  )
+)
+
+magplot(
+  prospect_agn$DustLumTotalQ50[spec_match_agn_idx],
+  nircam_agn$DustLumTotalQ50,
+  xlab = "HST+NIRCam+MIRI SFR DustLum",
+  ylab = "HST+NIRCam SFR DustLum",
+  xlim = c(1e7, 1e13),
+  ylim = c(1e7, 1e13),
+  log = "xy"
+)
+magerr(
+  prospect_agn$DustLumTotalQ50[spec_match_agn_idx],
+  nircam_agn$DustLumTotalQ50,
+  xlo = prospect_agn$DustLumTotal_lo[spec_match_agn_idx],
+  xhi = prospect_agn$DustLumTotal_hi[spec_match_agn_idx],
+  ylo = nircam_agn$DustLumTotal_lo,
+  yhi = nircam_agn$DustLumTotal_hi,
+)
+abline(0,1)
+print(
+  median(
+    log10(nircam_agn$DustLumTotalQ50/prospect_agn$DustLumTotalQ50[spec_match_agn_idx])
+  )
+)
 
 magplot(
   prospect_agn$AGNlumQ50[spec_match_agn_idx],
@@ -92,9 +139,19 @@ magerr(
 )
 abline(0,1)
 
-median(mean(c(prospect_agn$SFR10_lo[spec_match_agn_idx],prospect_agn$SFR10_hi[spec_match_agn_idx]))) / median(mean(c(nircam_agn$SFR10_lo,nircam_agn$SFR10_hi)))
+median(rowMeans(cbind(prospect_agn$StellarMass_lo[spec_match_agn_idx],prospect_agn$StellarMass_hi[spec_match_agn_idx]))) / median(rowMeans(cbind(nircam_agn$StellarMass_lo,nircam_agn$StellarMass_hi)))
 
-median(mean(c(prospect_agn$DustLumTotal_lo[spec_match_agn_idx],prospect_agn$DustLumTotal_hi[spec_match_agn_idx]))) / median(mean(c(nircam_agn$DustLumTotal_lo,nircam_agn$DustLumTotal_hi)))
+median(rowMeans(cbind(prospect_agn$SFR10_lo[spec_match_agn_idx],prospect_agn$SFR10_hi[spec_match_agn_idx]))) / median(rowMeans(cbind(nircam_agn$SFR10_lo,nircam_agn$SFR10_hi)))
+
+median(rowMeans(cbind(prospect_agn$AGNlum_lo[spec_match_agn_idx],prospect_agn$AGNlum_hi[spec_match_agn_idx]))) / median(rowMeans(cbind(nircam_agn$AGNlum_lo,nircam_agn$AGNlum_hi)))
+
+(prospect_agn$AGNlumQ84[spec_match_agn_idx] - prospect_agn$AGNlumQ16[spec_match_agn_idx])/(nircam_agn$AGNlumQ84 - nircam_agn$AGNlumQ16)
+
+median(rowMeans(cbind(prospect_agn$DustLumTotal_lo[spec_match_agn_idx],prospect_agn$DustLumTotal_hi[spec_match_agn_idx]))) / median(rowMeans(cbind(nircam_agn$DustLumTotal_lo,nircam_agn$DustLumTotal_hi)))
+
+
+median(mean(c(prospect_agn$DustMassTotal_lo[spec_match_agn_idx],prospect_agn$DustMassTotal_hi[spec_match_agn_idx]))) / median(mean(c(nircam_agn$DustMassTotal_lo,nircam_agn$DustMassTotal_hi)))
+
 # 
 # median(mean(c(prospect_agn$SFR10_lo[spec_match_agn_idx],prospect_agn$SFR10_hi[spec_match_agn_idx])))
 # median(mean(c(nircam_agn$SFR10_lo,nircam_agn$SFR10_hi)))

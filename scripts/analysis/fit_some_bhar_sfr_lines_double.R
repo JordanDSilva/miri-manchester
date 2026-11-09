@@ -53,49 +53,49 @@ dbl_pl = function(x, parm){
   return(y)
 }
 
-sing_pl = function(x, parm){
-  alpha = parm[1]
-  beta  = parm[2]
-  
-  y = alpha*(x - 7) + beta
-  
-  return(y)
-}
-
 PGF = function(Data){
   M0    = rnorm(1, 7, 1.0)
   alpha = rnorm(1, 1, 0.3)
   log_delta = rnorm(1, log(0.5), 0.5)
   # delta = rgamma(1, shape = 2, rate = 2)   # ensures positivity
   S0    = rnorm(1, 1, 0.5)
+  log_sint = rnorm(1, log10(0.3), 1.0)
   xtrue = rnorm(Data$N, Data$x_obs, Data$xerr)
-  return(c(M0, alpha, log_delta, S0, xtrue))
+  return(c(M0, alpha, log_delta, S0, log_sint, xtrue))
 }
 
 Model = function(parm, Data){
   
-  M0    = parm[1]
-  alpha = parm[2]
+  M0        = parm[1]
+  alpha     = parm[2]
   log_delta = parm[3]
-  S0    = parm[4]
-  xtrue = parm[5:(4 + Data$N)]
+  S0        = parm[4]
+  log_sint = parm[5]            # shift xtrue to parm[6:(5+Data$N)]
+  xtrue     = parm[6:(5 + Data$N)]
   
   delta = exp(log_delta)
   beta = alpha - delta
+  
+  sint2 = exp(2 * log_sint)
   
   # --- Priors on model parameters ---
   M0.prior        = dnorm(M0,        7,  3, log = TRUE)
   alpha.prior     = dnorm(alpha,     1.0, 2.0, log = TRUE)
   log_delta.prior = dnorm(log_delta, 0,   1,  log = TRUE) # always positive
   S0.prior        = dnorm(S0,        2,  3, log = TRUE)
+  log_sint.prior = dnorm(log_sint, log(0.3), 1.0, log = TRUE)
+  # log_sint.prior = 0
   
   # --- Model prediction at xtrue ---
   y_model = dbl_pl(xtrue, c(M0, alpha, beta, S0))
   
   # --- 2D Gaussian likelihood per point ---
   # --- Extract covariance components as vectors (length N) ---
-  sx2 = Data$covarray[1, 1, ]   # xerr^2 per point
-  sy2 = Data$covarray[2, 2, ]   # yerr^2 per point
+  
+  eps = 1e-3
+  
+  sx2 = Data$covarray[1, 1, ] + eps  # xerr^2 per point
+  sy2 = Data$covarray[2, 2, ] + eps + sint2  # yerr^2 per point + intrinsic scatter
   sxy = Data$covarray[1, 2, ]   # covariance per point (0 if uncorrelated)
   
   dx = Data$x_obs - xtrue
@@ -110,70 +110,20 @@ Model = function(parm, Data){
   
   LL = sum(LL_vec)
   
-  LP = LL + M0.prior + alpha.prior + log_delta.prior + S0.prior
+  LP = LL + M0.prior + alpha.prior + log_delta.prior + S0.prior + log_sint.prior
+  
   # LP = LL
   
   Modelout = list(
     LP = LP,
     Dev = -2 * LL,
-    Monitor = c(LP, M0, alpha, beta, delta, S0),
+    Monitor = c(LP, M0, alpha, beta, delta, S0, sint2),
     yhat = y_model,
     parm = parm
   )
+  
   return(Modelout)
-}
-
-Model_UL = function(parm, Data){
   
-  M0        = parm[1]
-  alpha     = parm[2]
-  log_delta = parm[3]
-  S0        = parm[4]
-  xtrue     = parm[5:(4 + Data$N)]
-  
-  delta = exp(log_delta)
-  beta  = alpha - delta
-  
-  # --- Priors on model parameters ---
-  M0.prior        = dnorm(M0,        7,   3,   log = TRUE)
-  alpha.prior     = dnorm(alpha,     1.0, 2.0, log = TRUE)
-  log_delta.prior = dnorm(log_delta, 0,   1,   log = TRUE)
-  S0.prior        = dnorm(S0,        2,   3,   log = TRUE)
-  
-  # --- Model prediction at xtrue ---
-  y_model = dbl_pl(xtrue, c(M0, alpha, beta, S0))
-  
-  sx2 = Data$covarray[1, 1, ]
-  sy2 = Data$covarray[2, 2, ]
-  sxy = Data$covarray[1, 2, ]
-  
-  dx = Data$x_obs - xtrue
-  dy = Data$y_obs - y_model       # for flagged rows y_obs holds the upper limit
-  
-  # --- Detections: bivariate normal density (as before) ---
-  det_Sigma = sx2 * sy2 - sxy^2
-  quadform  = (dx^2 * sy2 - 2 * dx * dy * sxy + dy^2 * sx2) / det_Sigma
-  LL_det    = -log(2 * pi) - 0.5 * log(det_Sigma) - 0.5 * quadform
-  
-  # --- Upper limits: N(dx; 0, sx2) * P(e_y < dy | e_x = dx) ---
-  mu_cond = (sxy / sx2) * dx
-  sd_cond = sqrt(sy2 - sxy^2 / sx2)
-  LL_ul   = dnorm(dx, 0, sqrt(sx2), log = TRUE) +
-    pnorm(dy, mean = mu_cond, sd = sd_cond, lower.tail = TRUE, log.p = TRUE)
-  
-  LL_vec = ifelse(Data$upper_limits, LL_ul, LL_det)
-  LL     = sum(LL_vec)
-  
-  LP = LL + M0.prior + alpha.prior + log_delta.prior + S0.prior
-  
-  Modelout = list(
-    LP = LP,
-    Dev = -2 * LL,
-    Monitor = c(LP, M0, alpha, beta, delta, S0),
-    yhat = y_model,
-    parm = parm
-  )
-  return(Modelout)
 }
 
 # --- Root-finding function for a single parameter draw ---
@@ -227,7 +177,7 @@ for(i in 1:length(zmids)){
   yerr = (log10(BHARSFR_df_sample$BHARSFR10Q84[zidx]) - log10(BHARSFR_df_sample$BHARSFR10Q16[zidx])) * 0.5
   
   # up_lims = prospect_sample$StellarMassQ50[zidx]/mean(c(prospect_sample$StellarMass_lo[zidx],prospect_sample$StellarMass_hi[zidx])) < 3
-  AGN_idx = prospect_sample$StellarMassQ50[zidx] > 0
+  AGN_idx = x_obs >= -999
 
   N = length(which(AGN_idx))
   
@@ -270,18 +220,17 @@ for(i in 1:length(zmids)){
     # parm.names = c("M0", "alpha", "beta", "S0", paste0("xtrue", 1:N)),
     PGF   = PGF
   )
-  Data$mon.names  = c("LP", "M0", "alpha", "beta", "delta", "S0")
-  Data$parm.names = c("M0", "alpha", "log_delta", "S0", paste0("xtrue", 1:N))
+  Data$mon.names  = c("LP", "M0", "alpha", "beta", "delta", "S0", "sint2")
+  Data$parm.names = c("M0", "alpha", "log_delta", "S0", "log_sint", paste0("xtrue", 1:N))
   
   Initial.Values = PGF(Data)
   
-
   Fit = LaplacesDemon(
     Model = Model,
     Data  = Data,
     Initial.Values = Initial.Values,
     Covar = NULL,
-    Iterations = 20000,
+    Iterations = 100000,
     Status = 1000,
     Thinning = 10,
     Algorithm = "CHARM",       # adaptive algorithm, good default for this kind of problem
@@ -289,15 +238,37 @@ for(i in 1:length(zmids)){
   )
   
   # --- Extract posterior on model parameters only (drop latent x_true columns) ---
-  post = Fit$Monitor[, c("M0", "alpha", "beta", "S0")]
+
+  # Posterior samples of the model parameters
+  post <- Fit$Monitor[, c("M0", "alpha", "beta", "S0", "sint2")]
   
-  # --- Grid over which to evaluate the fit ---
-  y_samples = apply(post, 1, function(parm) dbl_pl(x_grid, parm))
-  # y_samples is a matrix: nrow = length(x_grid), ncol = n_posterior_samples
+  # Evaluate the model for each posterior sample
+  y_samples <- apply(post, 1, function(parm) dbl_pl(x_grid, parm))
   
-  # --- Compute quantiles at each x point across posterior samples ---
-  y_quantiles = t(apply(y_samples, 1, quantile, probs = c(0.50, 0.16, 0.84), na.rm = TRUE))
-  colnames(y_quantiles) = c("Q50", "Q16", "Q84")
+  # Add intrinsic scatter to each posterior realisation
+  y_pred_samples <- y_samples
+  
+  for (j in seq_len(nrow(post))) {
+    y_pred_samples[, j] <- y_samples[, j] +
+      rnorm(length(x_grid), mean = 0, sd = sqrt(post[j, "sint2"]))
+  }
+  
+  # Quantiles of the fitted mean
+  y_quantiles <- t(apply(
+    y_samples, 1, quantile,
+    probs = c(0.50, 0.16, 0.84),
+    na.rm = TRUE
+  ))
+  
+  # Quantiles of the predictive distribution
+  y_pred_quantiles <- t(apply(
+    y_pred_samples, 1, quantile,
+    probs = c(0.50, 0.16, 0.84),
+    na.rm = TRUE
+  ))
+  
+  colnames(y_quantiles) <- c("Q50", "Q16", "Q84")
+  colnames(y_pred_quantiles) <- c("Q50", "Q16", "Q84")
   
   df_quantiles_post = colQuantiles(
     x = post,
@@ -306,7 +277,7 @@ for(i in 1:length(zmids)){
   )
   
   # --- Apply across all posterior samples ---
-  Mbreak_quantiles = apply(y_quantiles, 2, function(x){find_zero_from_grid(x_grid, y_vals = x)})
+  Mbreak_quantiles = apply(y_pred_quantiles, 2, function(x){find_zero_from_grid(x_grid, y_vals = x)})
   Mbreak_quantiles[c("Q16", "Q84")] = Mbreak_quantiles[c("Q84", "Q16")]
   Mbreak_quantiles[is.na(Mbreak_quantiles)] = -999
   
@@ -325,6 +296,7 @@ for(i in 1:length(zmids)){
   )
 
   y_quantiles = cbind(y_quantiles, "x" = x_grid)
+  y_pred_quantiles = cbind(y_pred_quantiles, "x" = x_grid)
   
   # --- Base plot ---
   pdf(
@@ -370,7 +342,12 @@ for(i in 1:length(zmids)){
     col = rgb(0, 0, 1, alpha = 0.25),   # transparent blue
     border = NA
   )
-  
+  polygon(
+    x = c(x_grid, rev(x_grid)),
+    y = c(y_pred_quantiles[, "Q16"], rev(y_pred_quantiles[, "Q84"])),
+    col = rgb(0, 0, 1, alpha = 0.25),   # transparent blue
+    border = NA
+  )
   # --- Median fit line ---
   lines(
     x_grid,
@@ -398,45 +375,56 @@ for(i in 1:length(zmids)){
   
   df_fit[[i]] = list(
     "df" = df,
-    "fit" = y_quantiles
+    "fit" = y_quantiles,
+    "pred_fit" = y_pred_quantiles
   )
 }
 
-# df_fit = df_fit[!sapply(df_fit, is.null)]
-# df_cat = data.frame(do.call(
-#   rbind, lapply(df_fit, function(x)x$df)
-# ))
-# saveRDS(
-#   df_fit,
-#   "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds"
-# )
-# 
-# fwrite(
-#   df_cat, 
-#   "~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"
-# )
-# 
-# df_fit = readRDS("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds")
-# df_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
-# 
-# h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
-# # Create the file if it doesn't exist yet; otherwise we append into it
-# if (!file.exists(h5file)) {
-#   h5createFile(h5file)
-# }
-# 
-# h5ls(h5file)
-# if (any(h5ls(h5file)$name == "SFRBHAR")) {
-#   h5delete(h5file, "SFRBHAR")
-# }
-# # h5delete(h5file, "SFRBHAR")
-# h5createGroup(h5file, "SFRBHAR")
-# h5write(df_cat, file = h5file, name = paste0("SFRBHAR/Params"))
-# h5createGroup(h5file, "SFRBHAR/fits")
-# for(i in 1:length(df_fit)){
-#   h5write(
-#     data.frame(df_fit[[i]]$fit), 
-#     file = h5file, 
-#     name = paste0("SFRBHAR/fits/", i)
-#   )
-# }
+df_fit = df_fit[!sapply(df_fit, is.null)]
+df_cat = data.frame(do.call(
+  rbind, lapply(df_fit, function(x)x$df)
+))
+saveRDS(
+  df_fit,
+  "~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds"
+)
+
+fwrite(
+  df_cat,
+  "~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"
+)
+
+df_fit = readRDS("~/Documents/JWST-MIRI-AGN/data/prospect/prospect_robust_SMBH_results.rds")
+df_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/BHAR_SFR_dpl_fit_results.csv"))
+
+h5file <- path.expand("~/Documents/JWST-MIRI-AGN/data/analysis_data.h5")
+# Create the file if it doesn't exist yet; otherwise we append into it
+if (!file.exists(h5file)) {
+  h5createFile(h5file)
+}
+
+h5ls(h5file)
+if (any(h5ls(h5file)$name == "SFRBHAR")) {
+  h5delete(h5file, "SFRBHAR")
+}
+# h5delete(h5file, "SFRBHAR")
+h5createGroup(h5file, "SFRBHAR")
+h5write(df_cat, file = h5file, name = paste0("SFRBHAR/Params"))
+
+h5createGroup(h5file, "SFRBHAR/fits")
+for(i in 1:length(df_fit)){
+  h5write(
+    data.frame(df_fit[[i]]$fit),
+    file = h5file,
+    name = paste0("SFRBHAR/fits/", i)
+  )
+}
+
+h5createGroup(h5file, "SFRBHAR/pred_fits")
+for(i in 1:length(df_fit)){
+  h5write(
+    data.frame(df_fit[[i]]$pred_fit),
+    file = h5file,
+    name = paste0("SFRBHAR/pred_fits/", i)
+  )
+}

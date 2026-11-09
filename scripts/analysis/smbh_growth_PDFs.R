@@ -96,7 +96,9 @@ for(kk in 1:nrow(prospect_cat)){
       "SMBH_Q16" = quantile(SMBH_post, probs = 0.16, na.rm = TRUE),
       "SMBH_Q84" = quantile(SMBH_post, probs = 0.84, na.rm = TRUE),
       "SMBH_lo" = quantile(SMBH_post, probs = 0.5, na.rm = TRUE) - quantile(SMBH_post, probs = 0.16, na.rm = TRUE),
-      "SMBH_hi" = quantile(SMBH_post, probs = 0.84, na.rm = TRUE) - quantile(SMBH_post, probs = 0.5, na.rm = TRUE)
+      "SMBH_hi" = quantile(SMBH_post, probs = 0.84, na.rm = TRUE) - quantile(SMBH_post, probs = 0.5, na.rm = TRUE),
+      "ID" = prospect_cat$ID[kk],
+      "CATID" = prospect_cat$CATID[kk]
     )
     
     names(df) = c(
@@ -109,7 +111,9 @@ for(kk in 1:nrow(prospect_cat)){
       "smbh_Q16",
       "smbh_Q84",
       "smbh_lo",
-      "smbh_hi"
+      "smbh_hi",
+      "ID",
+      "CATID"
     )
     
   }else{
@@ -123,7 +127,9 @@ for(kk in 1:nrow(prospect_cat)){
       "smbh_Q16" = -999,
       "smbh_Q84" = -999,
       "smbh_lo"  = 0, 
-      "smbh_hi"  = 0
+      "smbh_hi"  = 0,
+      "ID" = prospect_cat$ID[kk],
+      "CATID" = prospect_cat$CATID[kk]
     )
   }
   
@@ -133,7 +139,8 @@ for(kk in 1:nrow(prospect_cat)){
 SMBH_df = data.frame(do.call(rbind, lapply(results_fit, function(x)x$df)))
 names(SMBH_df) = paste0(c(
   "LEddQ50","LEddQ16","LEddQ84","LEdd_lo","LEdd_hi",
-  "SMBHQ50","SMBHQ16","SMBHQ84","SMBH_lo","SMBH_hi"
+  "SMBHQ50","SMBHQ16","SMBHQ84","SMBH_lo","SMBH_hi",
+  "ID", "CATID"
 ))
 
 format( eddTime / median((1-epsilon)/epsilon)*median(SMBH_df$LEddQ50[SMBH_df$LEddQ50 != -999]), scientific = T)

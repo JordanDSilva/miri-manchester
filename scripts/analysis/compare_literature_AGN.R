@@ -13,14 +13,33 @@ phot_cat = Rfits_read("~/Documents/JWST-MIRI-AGN/data/catalogues/miri_profound_m
 h5file = "~/Documents/JWST-MIRI-AGN/data/analysis_data.h5"
 
 prospect_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robust_catalogue.csv"))
+prospect_cat_DIC = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_robustDIC_catalogue.csv"))
 AGN_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_fritz_norm_eazy_astro_cat.csv"))
 Stellar_cat = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/prospect/photoZ_bc03_snorm_norm_eazy_astro_cat.csv"))
+
+SMBH_df = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/smbh/prospect_robust_SMBH_results_PDF.csv"))
 
 sample_idx = prospect_cat$zQ50 >= 1.07467287 & prospect_cat$zQ50 < 9.98276084 & !is.na(prospect_cat$zQ50)
 
 prospect_cat = prospect_cat[sample_idx, ]
+prospect_cat_DIC = prospect_cat_DIC[sample_idx, ]
+
+maghist(prospect_cat_DIC$AGNanQ50, breaks=seq(0,90,1), ylim = c(0, 100))
+maghist(prospect_cat$AGNanQ50,  breaks=seq(0,90,1), col = adjustcolor("blue", 0.3), add = T)
+
+maghist(prospect_cat_DIC$AGNtaQ50, breaks=seq(0, 10, 0.1), ylim = c(0, 100))
+maghist(prospect_cat$AGNtaQ50,  breaks=seq(0, 10, 0.1), col = adjustcolor("blue", 0.3), add = T)
+
+magplot(
+  prospect_cat$AGNlumQ50,
+  prospect_cat$AGNanQ50,
+  z = prospect_cat$zQ50,
+  log = "x"
+)
+
 AGN_cat = AGN_cat[sample_idx, ]
 Stellar_cat = Stellar_cat[sample_idx, ]
+SMBH_df = SMBH_df[sample_idx, ]
 
 smiles_footprint = Rfits_read("~/Documents/JWST-MIRI-AGN/data/images/smiles/smiles_smiles_smiles_profound_stack.fits")
 midis_footprint = Rfits_read("~/Documents/JWST-MIRI-AGN/data/images/midis/midis_midis_midis_profound_stack.fits")
@@ -112,7 +131,21 @@ literature_AGN = data.frame(
     rep("Barrows21", nrow(barrows21)), 
     rep("Juodzbalis26", nrow(juodzbalis26_combine)),
     rep("Scholtz25", nrow(scholtz25_merged))
-    )
+    ),
+  
+  "ledd" = c(
+    rep(NA, nrow(stemo20)), 
+    rep(NA, nrow(barrows21)), 
+    juodzbalis26_combine$lambda_Edd,
+    rep(NA, nrow(scholtz25_merged))
+  ),
+  
+  "SMBHmass" = c(
+    rep(NA, nrow(stemo20)), 
+    rep(NA, nrow(barrows21)), 
+    juodzbalis26_combine$log_MBH,
+    rep(NA, nrow(scholtz25_merged))
+  )
 )
 
 ## match with Above AGN table
@@ -120,6 +153,11 @@ vadim_match_literature_idx = coordmatch(
   coordref = vadim_own[, c("ra", "dec")],
   coordcompare = literature_AGN[, c("RA", "DEC")],
   rad = 1.0
+)
+
+fwrite(
+  vadim_own[vadim_match_literature_idx$bestmatch$refID, ], 
+  "~/Desktop/final_sample_matched_miri.csv"
 )
 
 literature_AGN$vadim_class = rep(NA, dim(literature_AGN)[1])
@@ -182,6 +220,11 @@ df = data.frame(
   "AGNlum_lo_lit" = 10^literature_AGN$Lagn[match_cat_idx$bestmatch$refID] - (10^(literature_AGN$Lagn[match_cat_idx$bestmatch$refID] - literature_AGN$Lagn_lo[match_cat_idx$bestmatch$refID])),
   "AGNlum_hi_lit" = (10^(literature_AGN$Lagn[match_cat_idx$bestmatch$refID] + literature_AGN$Lagn_hi[match_cat_idx$bestmatch$refID])) - 10^literature_AGN$Lagn[match_cat_idx$bestmatch$refID],
   
+  "Ledd_lit" = literature_AGN$ledd[match_cat_idx$bestmatch$refID],
+  "SMBHmass_lit" = literature_AGN$SMBHmass[match_cat_idx$bestmatch$refID],
+  "LeddQ50" = SMBH_df$LEddQ50[match_cat_idx$bestmatch$compareID],
+  "SMBHQ50" = SMBH_df$SMBHQ50[match_cat_idx$bestmatch$compareID],
+  
   "StellarMassQ50_lit" = 10^literature_AGN$Mstar[match_cat_idx$bestmatch$refID],
   "StellarMassQ16_lit" = 10^(literature_AGN$Mstar[match_cat_idx$bestmatch$refID] - literature_AGN$Mstar_lo[match_cat_idx$bestmatch$refID]),
   "StellarMassQ84_lit" = 10^(literature_AGN$Mstar[match_cat_idx$bestmatch$refID] + literature_AGN$Mstar_hi[match_cat_idx$bestmatch$refID]),
@@ -194,6 +237,31 @@ df = data.frame(
 sum(df$FitType == "StellarAGN" & df$class_from_vadim == "LRD", na.rm = TRUE)/sum(df$class_from_vadim == "LRD", na.rm = TRUE)
 sum(df$FitType == "StellarAGN" & df$class_from_vadim == "LBD", na.rm = TRUE)/sum(df$class_from_vadim == "LBD", na.rm = TRUE)
 
+
+magplot(
+  df$Ledd_lit,
+  df$LeddQ50,
+  xlim = c(0, 2.5),
+  ylim = c(0, 2.5)
+)
+abline(0,1)
+
+
+magplot(
+  df$LeddQ50,
+  df$AGNlumQ50_lit  / (10^df$SMBHmass_lit*1.26e38),
+  xlim = c(0, 2.5),
+  ylim = c(0, 2.5)
+)
+abline(0,1)
+
+magplot(
+  df$SMBHmass_lit,
+  log10(df$SMBHQ50),
+  xlim = c(5, 8),
+  ylim = c(5, 8)
+)
+abline(0,1)
 
 df$StellarAGN_AGNlumQ50[df$FitType == "StellarAGN" & df$class_from_vadim == "LBD"]/df$StellarAGN_StellarMassQ50[df$FitType == "StellarAGN" & df$class_from_vadim == "LBD"]
 

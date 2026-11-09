@@ -32,35 +32,35 @@ if (length(args[3]) == 0 | is.na(args[3])) {
   fittype <- args[3]
 }
 
-if(do_lrd){
-  save_dir = paste0(
-    main_dir, "data/prospect/", fittype, "_lrd/"
-  )
-  sed_dir = paste0(
-    main_dir, "data/prospect_seds/", fittype, "_lrd/"
-  )
-  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_lrd_astro_cat.csv")
-}else{
-  save_dir = paste0(
-    main_dir, "data/prospect/", fittype, "/"
-  )
-  sed_dir = paste0(
-    main_dir, "data/prospect_seds/", fittype, "/"
-  )
-  cat_stub = paste0(main_dir, "data/prospect/", fittype, "_astro_cat.csv")
-}
-
-load(
-  paste0(main_dir, "/data/prospect_data_for_fitting.rda")
-)
-
-if(do_lrd){
-  idx = unlist(
-     fread(
-       paste0(main_dir, "/data/prospect/LRD_colour_selection_IDs.txt")
-     )
-   )
-}
+# if(do_lrd){
+#   save_dir = paste0(
+#     main_dir, "data/prospect/", fittype, "_lrd/"
+#   )
+#   sed_dir = paste0(
+#     main_dir, "data/prospect_seds/", fittype, "_lrd/"
+#   )
+#   cat_stub = paste0(main_dir, "data/prospect/", fittype, "_lrd_astro_cat.csv")
+# }else{
+#   save_dir = paste0(
+#     main_dir, "data/prospect/", fittype, "/"
+#   )
+#   sed_dir = paste0(
+#     main_dir, "data/prospect_seds/", fittype, "/"
+#   )
+#   cat_stub = paste0(main_dir, "data/prospect/", fittype, "_astro_cat.csv")
+# }
+# 
+# load(
+#   paste0(main_dir, "/data/prospect_data_for_fitting.rda")
+# )
+# 
+# if(do_lrd){
+#   idx = unlist(
+#      fread(
+#        paste0(main_dir, "/data/prospect/LRD_colour_selection_IDs.txt")
+#      )
+#    )
+# }
 
 template_cols = names(
   readRDS(

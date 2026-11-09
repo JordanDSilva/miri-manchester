@@ -91,8 +91,19 @@ lrd_idx = (
   phot_cat$flag == 0L & 
   phot_cat$flag == 0 & 
   eazy$z_ml > 0 &
-  prospect_cat$zQ50 >= 1 & 
-  prospect_cat$zQ50 < 10
+  prospect_cat$zQ50 >= 1.07467287 & 
+  prospect_cat$zQ50 < 9.98276084
+)
+
+length(
+  which(
+    phot_cat$flag == 0L & 
+      phot_cat$flag == 0 & 
+      eazy$z_ml > 0 &
+      prospect_cat$zQ50 >= 1.07467287 & 
+      prospect_cat$zQ50 < 9.98276084 & 
+      !is.na(prospect_cat$zQ50)
+  )
 )
 
 for(kk in which(lrd_idx)){
