@@ -126,9 +126,8 @@ message(
 )
 
 # compare how many we set as NAs from large Mstar/MUV
-combined_catalogue_z = combined_catalogue[combined_catalogue$zQ50 >= 1.07467287 & combined_catalogue$zQ50 < 9.98276084, ]
-robust_catalogue_z = robust_catalogue[robust_catalogue$zQ50 >= 1.07467287 & robust_catalogue$zQ50 < 9.98276084, ]
-
+combined_catalogue_z = combined_catalogue[which(combined_catalogue$zQ50 >= 1.07467287 & combined_catalogue$zQ50 < 9.98276084), ]
+robust_catalogue_z = robust_catalogue[which(robust_catalogue$zQ50 >= 1.07467287 & robust_catalogue$zQ50 < 9.98276084), ]
 
 ## Isolate a DIC selected sample
 combined_DIC_catalogue = photoZ_bc03_snorm_fritz_norm_eazy # start with Stellar+AGN
@@ -186,3 +185,96 @@ with pd.HDFStore(h5_path, mode="a") as store:
 writeLines(py_code, "/tmp/write_h5.py")
 system('source ~/miniconda3/etc/profile.d/conda.sh && conda activate space && python /tmp/write_h5.py')
 unlink('/tmp/write_h5.py')
+
+
+# test quantities from the fits compared with and without AGN component
+pdf("~/Documents/JWST-MIRI-AGN/rough-plots/test_stellar_agn_stuff.pdf")
+# magplot(
+#   photoZ_bc03_snorm_norm_eazy$CATID[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+#   photoZ_bc03_snorm_fritz_norm_eazy$CATID[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]]
+# )
+magplot(
+  photoZ_bc03_snorm_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+  photoZ_bc03_snorm_fritz_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+  # z = photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+  log = "xy",
+  xlim = c(1e7, 1e12),
+  ylim = c(1e7, 1e12),
+  pch = 16,
+  col = adjustcolor("black", 0.3),
+  xlab = "Stellarmass from Stellar only fit but not significant AGN",
+  ylab = "Stellarmass from Stellar+AGN only fit but not significant AGN"
+)
+abline(0,1, col = "green")
+
+magplot(
+  photoZ_bc03_snorm_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+  photoZ_bc03_snorm_fritz_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]],
+  log = "xy",
+  xlim = c(1e-5, 1e3),
+  ylim = c(1e-5, 1e3),
+  pch = 16,
+  col = adjustcolor("black", 0.3),
+  xlab = "SFR from Stellar only fit but not significant AGN",
+  ylab = "SFR from Stellar+AGN only fit but not significant AGN"
+)
+abline(0,1, col = "green")
+
+maghist(
+  log10(
+    photoZ_bc03_snorm_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]]/
+      photoZ_bc03_snorm_fritz_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]]
+  ),
+  xlab = "Delta Mstar",
+  log = "y"
+)
+maghist(
+  log10(
+    photoZ_bc03_snorm_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]]/
+      photoZ_bc03_snorm_fritz_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "Stellar")]]
+  ),
+  xlab = "Delta SFR",
+  log = "y"
+)
+
+# magplot(
+#   photoZ_bc03_snorm_norm_eazy$CATID[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+#   photoZ_bc03_snorm_fritz_norm_eazy$CATID[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]]
+# )
+magplot(
+  photoZ_bc03_snorm_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  photoZ_bc03_snorm_fritz_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  z = photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  log = "xy",
+  xlim = c(1e7, 1e12),
+  ylim = c(1e7, 1e12),
+  xlab = "Stellarmass from Stellar only fit but significant AGN",
+  ylab = "Stellarmass from Stellar+AGN only fit but significant AGN"
+)
+magplot(
+  photoZ_bc03_snorm_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  photoZ_bc03_snorm_fritz_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  z = photoZ_bc03_snorm_fritz_norm_eazy$AGN_3_20_fracQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]],
+  log = "xy",
+  xlim = c(1e-5, 1e3),
+  ylim = c(1e-5, 1e3),
+  xlab = "SFR from Stellar only fit but significant AGN",
+  ylab = "SFR from Stellar+AGN only fit but significant AGN"
+)
+maghist(
+  log10(
+    photoZ_bc03_snorm_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]]/
+      photoZ_bc03_snorm_fritz_norm_eazy$StellarMassQ50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]]
+  ),
+  xlab = "Delta Mstar",
+  log = "y"
+)
+maghist(
+  log10(
+    photoZ_bc03_snorm_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]]/
+      photoZ_bc03_snorm_fritz_norm_eazy$SFR10Q50[robust_catalogue_z$CATID[which(robust_catalogue_z$FitType == "StellarAGN")]]
+  ),
+  xlab = "Delta SFR",
+  log = "y"
+)
+dev.off()

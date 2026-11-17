@@ -20,7 +20,7 @@ sample_idx = prospect_cat$zQ50 >= 1.07467287 & prospect_cat$zQ50 < 9.98276084 & 
 prospect_cat = prospect_cat[sample_idx, ]
 
 #covelo paz Halpha http://arxiv.org/abs/2409.17241
-covelo_paz_fname = "~/Downloads/J_A+A_694_A178/catalog.dat"
+covelo_paz_fname = "/Users/jordan/Documents/JWST-MIRI-AGN/data/literature/halpha-covpaz25/catalog.dat"
 lines <- readLines(covelo_paz_fname)
 lines <- gsub(",\\s+", ",", lines)   # "12143, 12144, 12145" -> "12143,12144,12145"
 

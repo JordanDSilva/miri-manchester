@@ -24,19 +24,6 @@ sample_idx = prospect_cat$zQ50 >= 1.07467287 & prospect_cat$zQ50 < 9.98276084 & 
 prospect_cat = prospect_cat[sample_idx, ]
 prospect_cat_DIC = prospect_cat_DIC[sample_idx, ]
 
-maghist(prospect_cat_DIC$AGNanQ50, breaks=seq(0,90,1), ylim = c(0, 100))
-maghist(prospect_cat$AGNanQ50,  breaks=seq(0,90,1), col = adjustcolor("blue", 0.3), add = T)
-
-maghist(prospect_cat_DIC$AGNtaQ50, breaks=seq(0, 10, 0.1), ylim = c(0, 100))
-maghist(prospect_cat$AGNtaQ50,  breaks=seq(0, 10, 0.1), col = adjustcolor("blue", 0.3), add = T)
-
-magplot(
-  prospect_cat$AGNlumQ50,
-  prospect_cat$AGNanQ50,
-  z = prospect_cat$zQ50,
-  log = "x"
-)
-
 AGN_cat = AGN_cat[sample_idx, ]
 Stellar_cat = Stellar_cat[sample_idx, ]
 SMBH_df = SMBH_df[sample_idx, ]
@@ -69,7 +56,8 @@ scholtz25_merged = jades_deephst |>
   inner_join(scholtz25, by = "NIRSpec_ID")
 
 
-vadim_catalogue = data.frame(fread("~/Downloads/sample_final.csv"))
+# vadim_catalogue = data.frame(fread("~/Downloads/sample_final.csv"))
+vadim_catalogue = data.frame(fread("~/Downloads/catalog_agn_classification.csv"))
 vadim_own = vadim_catalogue
 # vadim_own = vadim_catalogue[vadim_catalogue$flag == "OWN", ]
 
@@ -148,17 +136,17 @@ literature_AGN = data.frame(
   )
 )
 
-## match with Above AGN table
-vadim_match_literature_idx = coordmatch(
-  coordref = vadim_own[, c("ra", "dec")],
-  coordcompare = literature_AGN[, c("RA", "DEC")],
-  rad = 1.0
-)
+# ## match with Above AGN table
+# vadim_match_literature_idx = coordmatch(
+#   coordref = vadim_own[, c("ra", "dec")],
+#   coordcompare = literature_AGN[, c("RA", "DEC")],
+#   rad = 1.0
+# )
 
-fwrite(
-  vadim_own[vadim_match_literature_idx$bestmatch$refID, ], 
-  "~/Desktop/final_sample_matched_miri.csv"
-)
+# fwrite(
+#   vadim_own[vadim_match_literature_idx$bestmatch$refID, ], 
+#   "~/Desktop/final_sample_matched_miri.csv"
+# )
 
 literature_AGN$vadim_class = rep(NA, dim(literature_AGN)[1])
 literature_AGN$vadim_class[vadim_match_literature_idx$bestmatch$compareID] = vadim_own$class[vadim_match_literature_idx$bestmatch$refID]
