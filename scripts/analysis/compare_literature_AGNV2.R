@@ -44,6 +44,34 @@ juodzbalis26_sed = data.frame(fread("~/Documents/JWST-MIRI-AGN/data/literature/A
 juodzbalis26_combine = cbind(juodzbalis26, juodzbalis26_sed)
 
 harikane23_muv = c(-19.50, -18.94, -19.20, -17.82, -21.66, -16.71, -19.50, -21.23, -21.49, -19.61, -19.72, -22.4)
+
+harikane23_muv = c(-19.50, -18.94, -19.20, -17.82, -21.66, -16.71, -19.50, -21.23, -21.49, -19.61, -19.72, -22.4)
+library(tibble)
+
+harikane23 <- tribble(
+  ~name,          ~L_Ha_broad, ~L_Ha_broad_lo, ~L_Ha_broad_hi, ~L_ratio, ~L_ratio_lo, ~L_ratio_hi, ~FWHM, ~FWHM_lo, ~FWHM_hi, ~M_BH,  ~M_BH_lo, ~M_BH_hi, ~L_bol, ~L_bol_lo, ~L_bol_hi, ~lambda_Edd, ~lambda_Edd_lo, ~lambda_Edd_hi,
+  "CEERS_01244",  7.7e42, 0.2e42, 0.2e42,  2.51, 0.22, 0.17,  2228,  52, 75,    3.2e7, 0.2e7, 0.3e7,  1.9e45, 0.6e45, 3.8e45,  0.46, 0.16, 1.04,
+  "GLASS_160133", 1.2e42, 0.1e42, 0.1e42,  0.26, 0.01, 0.02,  1028,  13, 19,    2.3e6, 0.1e6, 0.1e6,  1.1e45, 0.9e45, 6.1e45,  3.68, 2.84, 21.21,
+  "GLASS_150029", 8.2e41, 0.5e41, 0.7e41,  0.22, 0.01, 0.02,  1429,  67, 10,    3.7e6, 0.3e6, 0.2e6,  9.1e44, 7.1e44, 13.8e44, 1.89, 1.49, 3.31,
+  "CEERS_00746",  6.8e43, 0.4e43, 0.4e43,  5.06, 1.26, 1.10,  1660, 162, 157,   5.8e7, 1.3e7, 1.5e7,  1.1e46, 0.2e46, 0.1e46,  1.47, 0.52, 0.60,
+  "CEERS_01665",  6.8e42, 0.6e42, 0.9e42,  0.28, 0.05, 0.05,  1794, 171, 282,   1.9e7, 0.5e7, 0.8e7,  4.8e45, 3.6e45, 7.2e45,  1.93, 1.59, 4.61,
+  "CEERS_00672",  1.8e43, 0.2e43, 0.2e43,  1.95, 0.40, 0.45,  2208, 241, 277,   5.0e7, 1.3e7, 1.7e7,  4.3e45, 1.4e45, 0.4e45,  0.65, 0.33, 0.31,
+  "CEERS_02782",  7.6e42, 0.7e42, 0.8e42,  0.85, 0.10, 0.14,  2534, 266, 260,   4.2e7, 1.0e7, 1.2e7,  2.8e45, 1.4e45, 2.3e45,  0.51, 0.32, 0.71,
+  "CEERS_00397",  2.6e42, 0.4e42, 0.8e42,  0.19, 0.05, 0.07,  1739, 317, 359,   1.0e7, 0.5e7, 0.8e7,  2.8e45, 2.2e45, 14.2e45, 2.02, 1.80, 20.68,
+  "CEERS_00717",  1.2e42, 0.2e42, 0.3e42,  0.57, 0.11, 0.17,  6279, 881, 805,   9.8e7, 3.2e7, 4.4e7,  7.1e44, 4.3e44, 51.8e44, 0.06, 0.04, 0.63,
+  "CEERS_01236",  4.8e41, 0.8e41, 1.1e41,  2.39, 0.59, 1.12,  3521, 485, 649,   1.8e7, 0.6e7, 1.0e7,  1.8e44, 0.5e44, 2.6e44,  0.08, 0.04, 0.20
+)
+
+maghist(
+  juodzbalis26$log_Lbol, breaks = seq(41, 46, 0.5), freq = TRUE
+)
+maghist(
+  log10(harikane23$L_bol), breaks = seq(41, 46, 0.5), add = TRUE, col = adjustcolor("blue", 0.3), freq = TRUE
+)
+maghist(
+  log10(prospect_cat$AGNlumQ50[prospect_cat$zQ50 > 3]), breaks = seq(41, 46, 0.5), add = TRUE, col = adjustcolor("red", 0.3), freq = TRUE
+)
+
 maghist(
   harikane23_muv, add = TRUE, col = adjustcolor("blue", 0.3)
 )
